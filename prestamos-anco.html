@@ -203,7 +203,7 @@ textarea.input{resize:vertical;min-height:70px}
   var S={ screen:'loading', user:null, auth:null, config:null,
           loans:[], payments:[], selId:null, tab:'pagos',
           loanType:'unico', periodic:'mensual', payType:'cuota',
-          draftFile:null, draftURL:null, error:'' };
+          draftFile:null, draftURL:null, error:'', loanDraft:{} };
 
   /* ---------- utils ---------- */
   function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
@@ -394,7 +394,10 @@ textarea.input{resize:vertical;min-height:70px}
 
   function listPagos(){
     var pagos=S.payments.slice().sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);});
-    if(!pagos.length) return emptyBox('🧾','Aún no hay pagos','Cuando registres un pago en un préstamo, aparecerá aquí lo más reciente primero.');
+    if(!pagos.length){
+      if(S.loans.length) return emptyBox('🧾','Aún no hay pagos','Tienes '+S.loans.length+' préstamo'+(S.loans.length===1?'':'s')+' guardado'+(S.loans.length===1?'':'s')+'. Míralos en la pestaña «Préstamos». Los pagos aparecerán aquí cuando registres uno.');
+      return emptyBox('🧾','Aún no hay movimientos','Toca el botón + para registrar tu primer préstamo. Los pagos aparecerán aquí lo más reciente primero.');
+    }
     var rows=pagos.slice(0,40).map(function(p){
       var l=loanById(p.loanId); var nm=l?(l.cliente&&l.cliente.nombre)||'Cliente':'(préstamo eliminado)';
       var tb=p.tipo==='interes'?'b-int':(p.tipo==='capital'?'b-cap':'b-cuota');
@@ -495,41 +498,48 @@ textarea.input{resize:vertical;min-height:70px}
   function kvFull(k,v){return '<div class="full"><div class="k">'+esc(k)+'</div><div class="v">'+v+'</div></div>';}
 
   /* ---------- form: nuevo préstamo ---------- */
+  function captureLoanForm(){
+    var map={nombre:'#f_nombre',doc:'#f_doc',tel:'#f_tel',dir:'#f_dir',monto:'#f_monto',
+             intr:'#f_int',per:'#f_per',ncuo:'#f_ncuo',vcuo:'#f_vcuo',fdes:'#f_fdes',fven:'#f_fven',notas:'#f_notas'};
+    for(var k in map){var e=qs(map[k]); if(e) S.loanDraft[k]=e.value;}
+    if(S.loanDraft.per!==undefined) S.periodic=S.loanDraft.per;
+  }
   function viewLoanForm(){
-    var di=(S.config&&S.config.interesDefault)||10;
+    var d=S.loanDraft||{};
+    var di=(d.intr!==undefined&&d.intr!=='')?d.intr:((S.config&&S.config.interesDefault)||10);
     var isC=S.loanType==='cuotas';
     var head='<div class="dethead"><button class="iconbtn" data-act="back">‹</button><div class="t">Nuevo préstamo</div></div>';
     var form='<div class="formwrap">'+
       (S.error?'<div class="err">'+esc(S.error)+'</div>':'')+
       '<form id="loanForm">'+
       '<div class="sectitle">Cliente</div>'+
-      '<div class="field"><label>Nombre del cliente <span class="req">*</span></label><input class="input" id="f_nombre" placeholder="Nombre y apellido" autocomplete="off"></div>'+
+      '<div class="field"><label>Nombre del cliente <span class="req">*</span></label><input class="input" id="f_nombre" placeholder="Nombre y apellido" autocomplete="off" value="'+esc(d.nombre||'')+'"></div>'+
       '<div class="two">'+
-        '<div class="field"><label>Documento</label><input class="input" id="f_doc" inputmode="numeric" placeholder="Cédula"></div>'+
-        '<div class="field"><label>Teléfono</label><input class="input" id="f_tel" inputmode="tel" placeholder="Celular"></div>'+
+        '<div class="field"><label>Documento</label><input class="input" id="f_doc" inputmode="numeric" placeholder="Cédula" value="'+esc(d.doc||'')+'"></div>'+
+        '<div class="field"><label>Teléfono</label><input class="input" id="f_tel" inputmode="tel" placeholder="Celular" value="'+esc(d.tel||'')+'"></div>'+
       '</div>'+
-      '<div class="field"><label>Dirección / referencia</label><input class="input" id="f_dir" placeholder="Opcional"></div>'+
+      '<div class="field"><label>Dirección / referencia</label><input class="input" id="f_dir" placeholder="Opcional" value="'+esc(d.dir||'')+'"></div>'+
 
       '<div class="sectitle">Préstamo</div>'+
-      '<div class="field"><label>Monto prestado (capital) <span class="req">*</span></label><input class="input tnum" id="f_monto" inputmode="numeric" placeholder="0"></div>'+
+      '<div class="field"><label>Monto prestado (capital) <span class="req">*</span></label><input class="input tnum" id="f_monto" inputmode="numeric" placeholder="0" value="'+esc(d.monto||'')+'"></div>'+
       '<div class="field"><label>Modalidad</label><div class="toggle">'+
         '<button type="button" data-ltype="unico" aria-pressed="'+(!isC)+'">Cobro único</button>'+
         '<button type="button" data-ltype="cuotas" aria-pressed="'+isC+'">Por cuotas</button>'+
       '</div></div>'+
       '<div class="two">'+
-        '<div class="field"><label>Interés (%) <span class="req">*</span></label><input class="input tnum" id="f_int" inputmode="decimal" value="'+di+'"></div>'+
+        '<div class="field"><label>Interés (%) <span class="req">*</span></label><input class="input tnum" id="f_int" inputmode="decimal" value="'+esc(di)+'"></div>'+
         '<div class="field"><label>Periodicidad</label><select class="select" id="f_per">'+
           perOpt('mensual')+perOpt('quincenal')+perOpt('semanal')+perOpt('único')+
         '</select></div>'+
       '</div>'+
       (isC?
         '<div class="two">'+
-          '<div class="field"><label>N° de cuotas</label><input class="input tnum" id="f_ncuo" inputmode="numeric" placeholder="Ej: 12"></div>'+
-          '<div class="field"><label>Valor por cuota</label><input class="input tnum" id="f_vcuo" inputmode="numeric" placeholder="0"></div>'+
+          '<div class="field"><label>N° de cuotas</label><input class="input tnum" id="f_ncuo" inputmode="numeric" placeholder="Ej: 12" value="'+esc(d.ncuo||'')+'"></div>'+
+          '<div class="field"><label>Valor por cuota</label><input class="input tnum" id="f_vcuo" inputmode="numeric" placeholder="0" value="'+esc(d.vcuo||'')+'"></div>'+
         '</div>':'')+
       '<div class="two">'+
-        '<div class="field"><label>Fecha de desembolso</label><input class="input" id="f_fdes" type="date"></div>'+
-        '<div class="field"><label>Fecha de vencimiento</label><input class="input" id="f_fven" type="date"></div>'+
+        '<div class="field"><label>Fecha de desembolso</label><input class="input" id="f_fdes" type="date" value="'+esc(d.fdes||'')+'"></div>'+
+        '<div class="field"><label>Fecha de vencimiento</label><input class="input" id="f_fven" type="date" value="'+esc(d.fven||'')+'"></div>'+
       '</div>'+
 
       '<div class="sectitle">Evidencia <span class="req">*</span></div>'+
@@ -540,7 +550,7 @@ textarea.input{resize:vertical;min-height:70px}
       '</label>'+
       '<div class="hint">La foto es obligatoria. Al cargarla defines el % de interés arriba.</div>'+
 
-      '<div class="field" style="margin-top:14px"><label>Notas</label><textarea class="input" id="f_notas" placeholder="Opcional"></textarea></div>'+
+      '<div class="field" style="margin-top:14px"><label>Notas</label><textarea class="input" id="f_notas" placeholder="Opcional">'+esc(d.notas||'')+'</textarea></div>'+
 
       '<button class="btn" type="submit" style="margin-top:4px">Guardar préstamo</button>'+
       '</form></div>';
@@ -569,7 +579,7 @@ textarea.input{resize:vertical;min-height:70px}
         registradoPor:S.user, createdAt:Date.now()
       };
       var ref=await DB.collection('loans').add(doc);
-      clearDraft(); S.selId=ref.id; S.screen='detail';
+      clearDraft(); S.loanDraft={}; S.selId=ref.id; S.screen='detail';
     }catch(e){S.error='No se pudo guardar: '+(e&&e.message||e);}
     savingOff(); render();
   }
@@ -681,7 +691,7 @@ textarea.input{resize:vertical;min-height:70px}
     var el;
     if(el=e.target.closest('[data-user]')){S.user=el.getAttribute('data-user');S.error='';render();return;}
     if(el=e.target.closest('[data-tab]')){S.tab=el.getAttribute('data-tab');render();return;}
-    if(el=e.target.closest('[data-ltype]')){S.loanType=el.getAttribute('data-ltype');render();return;}
+    if(el=e.target.closest('[data-ltype]')){captureLoanForm();S.loanType=el.getAttribute('data-ltype');render();return;}
     if(el=e.target.closest('[data-ptype]')){S.payType=el.getAttribute('data-ptype');
       el.parentNode.querySelectorAll('[data-ptype]').forEach(function(b){b.setAttribute('aria-pressed',b===el);});return;}
     if(el=e.target.closest('[data-open]')){S.selId=el.getAttribute('data-open');S.screen='detail';render();return;}
@@ -689,7 +699,7 @@ textarea.input{resize:vertical;min-height:70px}
     var act=e.target.closest('[data-act]'); if(!act)return;
     switch(act.getAttribute('data-act')){
       case 'logout': S.user=null;S.screen='login';S.error='';render();break;
-      case 'newLoan': clearDraft();S.loanType='unico';S.periodic='mensual';S.error='';S.screen='newLoan';render();break;
+      case 'newLoan': clearDraft();S.loanDraft={};S.loanType='unico';S.periodic='mensual';S.error='';S.screen='newLoan';render();break;
       case 'newPayment': clearDraft();S.payType='cuota';S.error='';S.screen='newPayment';render();break;
       case 'back': clearDraft();S.error='';S.screen='home';render();break;
       case 'backDetail': clearDraft();S.error='';S.screen='detail';render();break;
