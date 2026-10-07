@@ -1,0 +1,702 @@
+<title>Préstamos ANCO</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Sora:wght@500;600;700&display=swap">
+<style>
+/* Layout: app de una pantalla con header fijo, lista desplazable y botón flotante.
+   Identidad: verde esmeralda (confianza/dinero), neutros fríos, ámbar/rojo para mora. */
+:root{
+  --bg:#eaf0ed; --surface:#ffffff; --surface-2:#f4f7f5; --inset:#eef2f0;
+  --ink:#15211c; --muted:#5d6c64; --faint:#8a988f; --line:#dde4e0;
+  --brand:#0e7a5f; --brand-ink:#0a5a46; --brand-soft:#dff0ea;
+  --accent:#b8891f; --good:#15885a; --good-soft:#dcefe4;
+  --warn:#c07a16; --warn-soft:#f7ebd4; --bad:#bb3b2c; --bad-soft:#f6e0dc;
+  --on-brand:#ffffff; --shadow:0 1px 2px rgba(20,40,32,.05),0 8px 24px rgba(20,40,32,.06);
+  --r:16px; --r-sm:11px;
+  --font:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --display:"Sora","Plus Jakarta Sans",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d1511; --surface:#16211c; --surface-2:#1c2822; --inset:#121b16;
+  --ink:#e9efeb; --muted:#9dada4; --faint:#73827a; --line:#273530;
+  --brand:#2bb78c; --brand-ink:#53d6ab; --brand-soft:#123a30;
+  --accent:#e0bc5e; --good:#2bb78c; --good-soft:#123a30;
+  --warn:#e0a94a; --warn-soft:#38301b; --bad:#e2695a; --bad-soft:#3a211d;
+  --on-brand:#06110d; --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0d1511; --surface:#16211c; --surface-2:#1c2822; --inset:#121b16;
+  --ink:#e9efeb; --muted:#9dada4; --faint:#73827a; --line:#273530;
+  --brand:#2bb78c; --brand-ink:#53d6ab; --brand-soft:#123a30;
+  --accent:#e0bc5e; --good:#2bb78c; --good-soft:#123a30;
+  --warn:#e0a94a; --warn-soft:#38301b; --bad:#e2695a; --bad-soft:#3a211d;
+  --on-brand:#06110d; --shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px rgba(0,0,0,.35);
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);
+  font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased;overflow:hidden}
+*{box-sizing:border-box}
+.tnum{font-variant-numeric:tabular-nums}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{margin:0;font-family:var(--display);font-weight:600;letter-spacing:-.01em}
+
+#app{height:100%;display:flex;flex-direction:column;max-width:560px;margin:0 auto;
+  background:var(--bg);position:relative;overflow:hidden}
+
+/* ---------- pantallas de dato ---------- */
+.appbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--brand);
+  color:var(--on-brand);padding:14px 18px 16px}
+.appbar .brandrow{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.appbar .brand{display:flex;align-items:center;gap:9px;font-family:var(--display);font-weight:700;font-size:16px}
+.appbar .brand .dot{width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.18);
+  display:grid;place-items:center;font-size:15px}
+.ghost{background:rgba(255,255,255,.14);color:var(--on-brand);border-radius:9px;padding:7px 10px;
+  font-size:12.5px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.ghost:active{background:rgba(255,255,255,.26)}
+.basecard{margin-top:14px}
+.basecard .lbl{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;opacity:.82;font-weight:600}
+.basecard .amt{font-family:var(--display);font-weight:700;font-size:30px;line-height:1.1;margin-top:2px}
+.basecard .sub{font-size:12.5px;opacity:.85;margin-top:3px}
+
+.scroll{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;
+  padding:16px 16px calc(96px + env(safe-area-inset-bottom,0px))}
+
+.chips{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:16px}
+.chip{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm);padding:11px 10px;box-shadow:var(--shadow)}
+.chip .n{font-family:var(--display);font-weight:700;font-size:16px;line-height:1.15}
+.chip .t{font-size:11px;color:var(--muted);margin-top:3px;font-weight:500}
+.chip.mora .n{color:var(--bad)}
+.chip.cobrar .n{color:var(--accent)}
+
+.seg{display:flex;background:var(--inset);border:1px solid var(--line);border-radius:12px;padding:3px;margin-bottom:14px}
+.seg button{flex:1;padding:8px;border-radius:9px;font-weight:600;font-size:13.5px;color:var(--muted)}
+.seg button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+
+.sectitle{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);
+  font-weight:700;margin:4px 2px 10px}
+
+.list{display:flex;flex-direction:column;gap:9px}
+.row{width:100%;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  padding:13px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--shadow)}
+.row:active{transform:scale(.995)}
+.av{width:40px;height:40px;border-radius:11px;background:var(--brand-soft);color:var(--brand-ink);
+  display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:15px;flex:none}
+.row .mid{flex:1;min-width:0}
+.row .nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .meta{font-size:12.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .right{text-align:right;flex:none}
+.row .val{font-family:var(--display);font-weight:700;font-size:15px}
+.row .val.in{color:var(--good)}
+.badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.03em;padding:3px 8px;border-radius:999px;text-transform:uppercase}
+.b-activo{background:var(--brand-soft);color:var(--brand-ink)}
+.b-mora{background:var(--bad-soft);color:var(--bad)}
+.b-pagado{background:var(--good-soft);color:var(--good)}
+.b-cap{background:var(--inset);color:var(--muted)}
+.b-int{background:var(--warn-soft);color:var(--warn)}
+.b-cuota{background:var(--brand-soft);color:var(--brand-ink)}
+
+.empty{text-align:center;padding:38px 20px;color:var(--muted)}
+.empty .ic{font-size:34px;margin-bottom:8px}
+.empty h3{font-size:17px;color:var(--ink);margin-bottom:6px}
+.empty p{font-size:13.5px;max-width:260px;margin:0 auto}
+
+/* FAB */
+.fab{position:fixed;right:max(18px,calc(50% - 280px + 18px));
+  bottom:calc(20px + env(safe-area-inset-bottom,0px));z-index:20;
+  background:var(--brand);color:var(--on-brand);border-radius:16px;padding:14px 18px;
+  font-family:var(--display);font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;
+  box-shadow:0 8px 22px rgba(14,122,95,.42)}
+.fab:active{transform:translateY(1px)}
+.fab .plus{font-size:19px;line-height:1}
+
+/* ---------- detalle ---------- */
+.dethead{background:var(--surface);border-bottom:1px solid var(--line);
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:5;padding:12px 14px;
+  display:flex;align-items:center;gap:10px}
+.iconbtn{width:38px;height:38px;border-radius:11px;background:var(--inset);display:grid;place-items:center;font-size:18px;flex:none}
+.dethead .t{font-family:var(--display);font-weight:700;font-size:16px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;box-shadow:var(--shadow);margin-bottom:14px}
+.saldo-lbl{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--faint);font-weight:700}
+.saldo-amt{font-family:var(--display);font-weight:700;font-size:34px;line-height:1.08;margin:3px 0 2px}
+.saldo-sub{font-size:13px;color:var(--muted)}
+.prog{height:8px;border-radius:999px;background:var(--inset);overflow:hidden;margin-top:12px}
+.prog > span{display:block;height:100%;background:var(--brand);border-radius:999px}
+.kv{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+.kv .k{font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+.kv .v{font-weight:600;font-size:14.5px;margin-top:1px}
+.kv .full{grid-column:1 / -1}
+.evid{margin-top:12px;border-radius:12px;overflow:hidden;border:1px solid var(--line);display:block;width:100%}
+.evid img{display:block;width:100%;max-height:240px;object-fit:cover}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;
+  background:var(--brand);color:var(--on-brand);border-radius:13px;padding:14px;font-weight:700;font-family:var(--display);font-size:15px;box-shadow:var(--shadow)}
+.btn:active{transform:translateY(1px)}
+.btn.sec{background:var(--surface);color:var(--ink);border:1px solid var(--line);box-shadow:none}
+.btn.danger{background:var(--bad-soft);color:var(--bad);box-shadow:none}
+.btnrow{display:flex;gap:10px;margin-bottom:14px}
+.btnrow .btn{flex:1}
+
+/* ---------- formularios / login ---------- */
+.formwrap{flex:1;overflow-y:auto;padding:18px 16px calc(28px + env(safe-area-inset-bottom,0px))}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12.5px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.field label .req{color:var(--bad)}
+.input,.select,textarea.input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:12px;
+  padding:13px 14px;font-size:15.5px;color:var(--ink);outline:none;transition:border-color .15s,box-shadow .15s}
+.input:focus,.select:focus,textarea.input:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.input::placeholder{color:var(--faint)}
+textarea.input{resize:vertical;min-height:70px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.hint{font-size:12px;color:var(--faint);margin-top:6px}
+.toggle{display:flex;gap:8px}
+.toggle button{flex:1;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px;font-weight:600;font-size:14px;color:var(--muted)}
+.toggle button[aria-pressed="true"]{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-ink)}
+.photo{border:1.5px dashed var(--line);border-radius:14px;padding:18px;text-align:center;color:var(--muted);background:var(--surface-2)}
+.photo.has{padding:0;border-style:solid;overflow:hidden}
+.photo img{display:block;width:100%;max-height:220px;object-fit:cover}
+.photo .ic{font-size:26px}
+.photo .t{font-weight:600;color:var(--ink);margin-top:6px;font-size:14px}
+.photo .s{font-size:12px;margin-top:2px}
+.err{background:var(--bad-soft);color:var(--bad);border-radius:11px;padding:10px 12px;font-size:13px;font-weight:600;margin-bottom:14px}
+
+/* login / setup */
+.center{flex:1;overflow-y:auto;display:flex;flex-direction:column;justify-content:center;
+  padding:26px 20px calc(26px + env(safe-area-inset-bottom,0px))}
+.logo{width:62px;height:62px;border-radius:18px;background:var(--brand);color:var(--on-brand);
+  display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:28px;margin:0 auto 14px;box-shadow:0 10px 26px rgba(14,122,95,.4)}
+.center h1{text-align:center;font-size:24px}
+.center .tag{text-align:center;color:var(--muted);font-size:14px;margin:6px 0 24px}
+.userpick{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.userpick button{background:var(--surface);border:1.5px solid var(--line);border-radius:16px;padding:18px 12px;box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;gap:8px}
+.userpick button[aria-pressed="true"]{border-color:var(--brand);background:var(--brand-soft)}
+.userpick .av{width:48px;height:48px;font-size:18px}
+.userpick .un{font-weight:700;font-family:var(--display)}
+.splash{flex:1;display:grid;place-items:center;color:var(--muted);gap:14px;text-align:center;padding:20px}
+.spin{width:30px;height:30px;border:3px solid var(--line);border-top-color:var(--brand);border-radius:50%;animation:sp 1s linear infinite;margin:0 auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* overlays */
+.overlay{position:fixed;inset:0;z-index:40;background:rgba(10,20,16,.62);display:grid;place-items:center;padding:20px}
+.lightbox img{max-width:100%;max-height:82vh;border-radius:14px;display:block}
+.confirm{background:var(--surface);border-radius:18px;padding:22px;max-width:320px;width:100%;box-shadow:var(--shadow)}
+.confirm h3{font-size:18px;margin-bottom:8px}
+.confirm p{color:var(--muted);font-size:14px;margin:0 0 18px}
+.confirm .btnrow{margin:0}
+.saving{position:fixed;inset:0;z-index:50;background:rgba(10,20,16,.5);display:grid;place-items:center}
+.saving .box{background:var(--surface);border-radius:16px;padding:22px 30px;text-align:center;box-shadow:var(--shadow)}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}.row:active,.btn:active,.fab:active{transform:none}}
+</style>
+
+<div id="app">
+  <div class="splash">
+    <div><div class="spin"></div><div style="margin-top:12px">Cargando Préstamos ANCO…</div></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var app=document.getElementById('app');
+  var DB=null, ASSETS=null, subbed=false;
+  var S={ screen:'loading', user:null, auth:null, config:null,
+          loans:[], payments:[], selId:null, tab:'pagos',
+          loanType:'unico', periodic:'mensual', payType:'cuota',
+          draftFile:null, draftURL:null, error:'' };
+
+  /* ---------- utils ---------- */
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function cur(){return (S.config&&S.config.moneda)||'COP';}
+  function money(n){try{return new Intl.NumberFormat('es-CO',{style:'currency',currency:cur(),maximumFractionDigits:0}).format(Math.round(+n||0));}catch(e){return '$'+Math.round(+n||0).toLocaleString('es-CO');}}
+  function num(v){var n=parseFloat(String(v).replace(/[^0-9.-]/g,''));return isNaN(n)?0:n;}
+  function initials(name){var p=String(name||'?').trim().split(/\s+/);return ((p[0]||'')[0]||'?').toUpperCase()+((p[1]||'')[0]||'').toUpperCase();}
+  function today0(){var d=new Date();d.setHours(0,0,0,0);return d;}
+  function fmtDate(s){if(!s)return '—';var d=new Date(s+'T00:00:00');if(isNaN(d))return esc(s);return d.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'});}
+  function fmtDateTime(ms){if(!ms)return '';var d=new Date(ms);return d.toLocaleDateString('es-CO',{day:'2-digit',month:'short'})+' · '+d.toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});}
+  function qs(s){return app.querySelector(s);}
+  async function sha(t){var b=new TextEncoder().encode('anco::'+t);var h=await crypto.subtle.digest('SHA-256',b);return Array.prototype.map.call(new Uint8Array(h),function(x){return x.toString(16).padStart(2,'0');}).join('');}
+  function dataScreen(){return S.screen==='home'||S.screen==='detail';}
+
+  /* ---------- cálculos ---------- */
+  function calc(loan){
+    var pagos=S.payments.filter(function(p){return p.loanId===loan.id;})
+      .sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);});
+    var pagado=pagos.reduce(function(s,p){return s+num(p.monto);},0);
+    var total;
+    if(loan.tipo==='cuotas'){ total=num(loan.valorCuota)*num(loan.numCuotas);
+      if(!total) total=num(loan.monto)*(1+num(loan.interesPct)/100); }
+    else { total=num(loan.monto)*(1+num(loan.interesPct)/100); }
+    var saldo=Math.max(0,total-pagado);
+    var estado = saldo<=0 ? 'pagado'
+      : (loan.fechaVencimiento && new Date(loan.fechaVencimiento+'T00:00:00')<today0() ? 'mora':'activo');
+    var cuotasPag = (loan.tipo==='cuotas'&&num(loan.valorCuota))?Math.min(num(loan.numCuotas),Math.floor(pagado/num(loan.valorCuota))):null;
+    return {pagos:pagos,pagado:pagado,total:total,saldo:saldo,estado:estado,cuotasPag:cuotasPag,
+            interes:total-num(loan.monto)};
+  }
+  function totals(){
+    var prestado=S.loans.reduce(function(s,l){return s+num(l.monto);},0);
+    var recuperado=S.payments.reduce(function(s,p){return s+num(p.monto);},0);
+    var porCobrar=0,enMora=0,activos=0;
+    S.loans.forEach(function(l){var c=calc(l);porCobrar+=c.saldo;
+      if(c.estado==='mora')enMora+=c.saldo; if(c.estado!=='pagado')activos++;});
+    var base=num(S.config&&S.config.baseInicial);
+    return {prestado:prestado,recuperado:recuperado,porCobrar:porCobrar,enMora:enMora,
+            base:base,saldoBase:base-prestado+recuperado,activos:activos};
+  }
+  function loanById(id){for(var i=0;i<S.loans.length;i++)if(S.loans[i].id===id)return S.loans[i];return null;}
+
+  /* ---------- boot ---------- */
+  async function boot(){
+    try{
+      if(!window.claude||!claude.use){S.screen='nodb';return render();}
+      DB=await claude.use('db');
+      ASSETS=await claude.use('assets');
+      if(!DB){S.screen='nodb';return render();}
+      var a=await DB.doc('config/auth').get();
+      if(a.exists){
+        S.auth=a.data();
+        var c=await DB.doc('config/app').get();
+        S.config=c.exists?c.data():{moneda:'COP'};
+        S.screen='login';
+      } else { S.screen='setup'; }
+      render(); subscribe();
+    }catch(e){ S.screen='setup'; render(); }
+  }
+  function subscribe(){
+    if(subbed||!DB)return; subbed=true;
+    DB.collection('loans').onSnapshot(function(s){
+      S.loans=s.docs.map(function(d){var o=d.data()||{};o.id=d.id;return o;});
+      if(dataScreen())render();
+    },function(){});
+    DB.collection('payments').onSnapshot(function(s){
+      S.payments=s.docs.map(function(d){var o=d.data()||{};o.id=d.id;return o;});
+      if(dataScreen())render();
+    },function(){});
+  }
+
+  /* ---------- render ---------- */
+  function render(){
+    var h;
+    switch(S.screen){
+      case 'nodb': h=viewNoDb(); break;
+      case 'setup': h=viewSetup(); break;
+      case 'login': h=viewLogin(); break;
+      case 'home': h=viewHome(); break;
+      case 'detail': h=viewDetail(); break;
+      case 'newLoan': h=viewLoanForm(); break;
+      case 'newPayment': h=viewPayForm(); break;
+      default: h='<div class="splash"><div><div class="spin"></div><div style="margin-top:12px">Cargando…</div></div></div>';
+    }
+    app.innerHTML=h;
+    bind();
+  }
+
+  function viewNoDb(){
+    return '<div class="center"><div class="logo">A</div>'+
+      '<h1>Préstamos ANCO</h1>'+
+      '<div class="err" style="margin-top:20px">No se pudo conectar con el almacenamiento en la nube. '+
+      'Abre esta app desde Claude estando con tu sesión iniciada. Si eres tu esposa, pide que te compartan '+
+      'el enlace con permiso de edición.</div></div>';
+  }
+
+  /* ---------- setup ---------- */
+  function viewSetup(){
+    return '<div class="formwrap"><div style="text-align:center;margin-bottom:8px"><div class="logo">A</div>'+
+      '<h1>Configuración inicial</h1><div class="tag" style="margin-top:6px">Se hace una sola vez. Crea los dos usuarios y la base.</div></div>'+
+      (S.error?'<div class="err">'+esc(S.error)+'</div>':'')+
+      '<form id="setupForm">'+
+      '<div class="sectitle" style="margin-top:6px">La base (fondo para prestar)</div>'+
+      '<div class="two">'+
+        '<div class="field"><label>Monto de la base</label><input class="input tnum" id="s_base" inputmode="numeric" placeholder="0"></div>'+
+        '<div class="field"><label>Interés sugerido (%)</label><input class="input tnum" id="s_int" inputmode="decimal" placeholder="10"></div>'+
+      '</div>'+
+      '<div class="sectitle">Usuario 1</div>'+
+      '<div class="field"><label>Nombre <span class="req">*</span></label><input class="input" id="s_n1" placeholder="Ej: Cristian" autocomplete="off"></div>'+
+      '<div class="field"><label>Contraseña <span class="req">*</span></label><input class="input" id="s_p1" type="password" placeholder="••••" autocomplete="new-password"></div>'+
+      '<div class="sectitle">Usuario 2</div>'+
+      '<div class="field"><label>Nombre <span class="req">*</span></label><input class="input" id="s_n2" placeholder="Ej: Esposa" autocomplete="off"></div>'+
+      '<div class="field"><label>Contraseña <span class="req">*</span></label><input class="input" id="s_p2" type="password" placeholder="••••" autocomplete="new-password"></div>'+
+      '<button class="btn" type="submit" style="margin-top:6px">Crear y empezar</button>'+
+      '<div class="hint" style="text-align:center;margin-top:12px">La contraseña es un bloqueo familiar sencillo, no seguridad bancaria.</div>'+
+      '</form></div>';
+  }
+
+  async function doSetup(){
+    S.error='';
+    var n1=qs('#s_n1').value.trim(),p1=qs('#s_p1').value,
+        n2=qs('#s_n2').value.trim(),p2=qs('#s_p2').value;
+    if(!n1||!n2||!p1||!p2){S.error='Completa nombre y contraseña de los dos usuarios.';return render();}
+    if(n1.toLowerCase()===n2.toLowerCase()){S.error='Los dos usuarios deben tener nombres distintos.';return render();}
+    savingOn('Creando…');
+    try{
+      var auth={u1:{nombre:n1,hash:await sha(p1)},u2:{nombre:n2,hash:await sha(p2)},createdAt:Date.now()};
+      var cfg={baseInicial:num(qs('#s_base').value),moneda:'COP',interesDefault:num(qs('#s_int').value)||10,createdAt:Date.now()};
+      await DB.doc('config/auth').set(auth);
+      await DB.doc('config/app').set(cfg);
+      S.auth=auth;S.config=cfg;S.screen='login';
+    }catch(e){S.error='No se pudo guardar: '+(e&&e.message||e);}
+    savingOff();render();subscribe();
+  }
+
+  /* ---------- login ---------- */
+  function viewLogin(){
+    var u1=S.auth.u1.nombre,u2=S.auth.u2.nombre;
+    var sel=S.user||'';
+    return '<div class="center"><div class="logo">A</div>'+
+      '<h1>Préstamos ANCO</h1><div class="tag">¿Quién está ingresando?</div>'+
+      (S.error?'<div class="err">'+esc(S.error)+'</div>':'')+
+      '<div class="userpick">'+
+        '<button data-user="'+esc(u1)+'" aria-pressed="'+(sel===u1)+'"><span class="av">'+esc(initials(u1))+'</span><span class="un">'+esc(u1)+'</span></button>'+
+        '<button data-user="'+esc(u2)+'" aria-pressed="'+(sel===u2)+'"><span class="av">'+esc(initials(u2))+'</span><span class="un">'+esc(u2)+'</span></button>'+
+      '</div>'+
+      '<form id="loginForm">'+
+        '<div class="field"><label>Contraseña</label><input class="input" id="l_pw" type="password" placeholder="••••" autocomplete="off"'+(sel?'':' disabled')+'></div>'+
+        '<button class="btn" type="submit"'+(sel?'':' disabled style="opacity:.5"')+'>Ingresar</button>'+
+      '</form></div>';
+  }
+  async function doLogin(){
+    S.error='';
+    var sel=S.user; if(!sel){S.error='Selecciona un usuario.';return render();}
+    var rec=S.auth.u1.nombre===sel?S.auth.u1:S.auth.u2;
+    var pw=qs('#l_pw').value;
+    if(await sha(pw)!==rec.hash){S.error='Contraseña incorrecta.';S.user=sel;render();return;}
+    S.screen='home';render();
+  }
+
+  /* ---------- home ---------- */
+  function viewHome(){
+    var t=totals();
+    var head='<div class="appbar"><div class="brandrow">'+
+      '<div class="brand"><span class="dot">A</span> Préstamos ANCO</div>'+
+      '<button class="ghost" data-act="logout">'+esc(S.user)+' · Salir</button></div>'+
+      '<div class="basecard"><div class="lbl">Saldo de la base</div>'+
+      '<div class="amt tnum">'+money(t.saldoBase)+'</div>'+
+      '<div class="sub">Base '+money(t.base)+' · '+t.activos+' préstamo'+(t.activos===1?'':'s')+' activo'+(t.activos===1?'':'s')+'</div></div></div>';
+
+    var chips='<div class="chips">'+
+      '<div class="chip"><div class="n tnum">'+money(t.prestado)+'</div><div class="t">Prestado</div></div>'+
+      '<div class="chip cobrar"><div class="n tnum">'+money(t.porCobrar)+'</div><div class="t">Por cobrar</div></div>'+
+      '<div class="chip mora"><div class="n tnum">'+money(t.enMora)+'</div><div class="t">En mora</div></div>'+
+      '</div>';
+
+    var seg='<div class="seg">'+
+      '<button data-tab="pagos" aria-selected="'+(S.tab==='pagos')+'">Pagos recientes</button>'+
+      '<button data-tab="prestamos" aria-selected="'+(S.tab==='prestamos')+'">Préstamos</button></div>';
+
+    var body;
+    if(S.tab==='pagos') body=listPagos(); else body=listPrestamos();
+
+    return head+'<div class="scroll">'+chips+seg+body+'</div>'+
+      '<button class="fab" data-act="newLoan"><span class="plus">+</span> Préstamo</button>';
+  }
+
+  function listPagos(){
+    var pagos=S.payments.slice().sort(function(a,b){return (b.createdAt||0)-(a.createdAt||0);});
+    if(!pagos.length) return emptyBox('🧾','Aún no hay pagos','Cuando registres un pago en un préstamo, aparecerá aquí lo más reciente primero.');
+    var rows=pagos.slice(0,40).map(function(p){
+      var l=loanById(p.loanId); var nm=l?(l.cliente&&l.cliente.nombre)||'Cliente':'(préstamo eliminado)';
+      var tb=p.tipo==='interes'?'b-int':(p.tipo==='capital'?'b-cap':'b-cuota');
+      var tl=p.tipo==='interes'?'Interés':(p.tipo==='capital'?'Capital':'Cuota');
+      return '<button class="row" data-open="'+esc(p.loanId)+'">'+
+        '<span class="av">'+esc(initials(nm))+'</span>'+
+        '<span class="mid"><span class="nm">'+esc(nm)+'</span>'+
+        '<span class="meta">'+fmtDateTime(p.createdAt)+' · '+esc(p.registradoPor||'')+'</span></span>'+
+        '<span class="right"><span class="val in tnum">+'+money(p.monto)+'</span><br><span class="badge '+tb+'">'+tl+'</span></span>'+
+        '</button>';
+    }).join('');
+    return '<div class="sectitle">Últimos pagos</div><div class="list">'+rows+'</div>';
+  }
+
+  function listPrestamos(){
+    if(!S.loans.length) return emptyBox('💸','Todavía no hay préstamos','Toca el botón + para registrar tu primer préstamo con su evidencia.');
+    var ls=S.loans.map(function(l){return {l:l,c:calc(l)};})
+      .sort(function(a,b){var o={mora:0,activo:1,pagado:2};
+        if(o[a.c.estado]!==o[b.c.estado])return o[a.c.estado]-o[b.c.estado];
+        return (b.l.createdAt||0)-(a.l.createdAt||0);});
+    var rows=ls.map(function(x){
+      var l=x.l,c=x.c; var nm=(l.cliente&&l.cliente.nombre)||'Cliente';
+      var sub=l.tipo==='cuotas'?('Cuotas '+(c.cuotasPag||0)+'/'+num(l.numCuotas)):'Cobro único';
+      return '<button class="row" data-open="'+esc(l.id)+'">'+
+        '<span class="av">'+esc(initials(nm))+'</span>'+
+        '<span class="mid"><span class="nm">'+esc(nm)+'</span>'+
+        '<span class="meta">'+esc(sub)+' · '+num(l.interesPct)+'%</span></span>'+
+        '<span class="right"><span class="val tnum">'+money(c.saldo)+'</span><br><span class="badge b-'+c.estado+'">'+c.estado+'</span></span>'+
+        '</button>';
+    }).join('');
+    return '<div class="sectitle">'+S.loans.length+' préstamo'+(S.loans.length===1?'':'s')+'</div><div class="list">'+rows+'</div>';
+  }
+  function emptyBox(ic,t,p){return '<div class="empty"><div class="ic">'+ic+'</div><h3>'+esc(t)+'</h3><p>'+esc(p)+'</p></div>';}
+
+  /* ---------- detalle ---------- */
+  function viewDetail(){
+    var l=loanById(S.selId); if(!l){S.screen='home';return viewHome();}
+    var c=calc(l); var cl=l.cliente||{};
+    var head='<div class="dethead"><button class="iconbtn" data-act="back">‹</button>'+
+      '<div><div class="t">'+esc(cl.nombre||'Cliente')+'</div></div>'+
+      '<div style="margin-left:auto"><span class="badge b-'+c.estado+'">'+c.estado+'</span></div></div>';
+
+    var prog='';
+    if(l.tipo==='cuotas'&&num(l.numCuotas)){
+      var pct=Math.min(100,Math.round((c.cuotasPag/num(l.numCuotas))*100));
+      prog='<div class="saldo-sub" style="margin-top:12px">Cuotas pagadas: '+c.cuotasPag+' de '+num(l.numCuotas)+' ('+money(l.valorCuota)+' c/u)</div>'+
+        '<div class="prog"><span style="width:'+pct+'%"></span></div>';
+    }
+    var saldoCard='<div class="card"><div class="saldo-lbl">Saldo pendiente</div>'+
+      '<div class="saldo-amt tnum" style="color:'+(c.estado==='pagado'?'var(--good)':(c.estado==='mora'?'var(--bad)':'var(--ink)'))+'">'+money(c.saldo)+'</div>'+
+      '<div class="saldo-sub">Pagado '+money(c.pagado)+' de '+money(c.total)+'</div>'+prog+'</div>';
+
+    var evid='';
+    if(l.evidenciaId){
+      evid='<button class="evid" data-view="'+esc(l.evidenciaId)+'"><img src="/_blob/'+esc(l.evidenciaId)+'" alt="Evidencia del préstamo"></button>';
+    }
+    var info='<div class="card">'+
+      '<div class="kv">'+
+        kv('Capital prestado',money(l.monto))+
+        kv('Interés',num(l.interesPct)+'% '+esc(l.periodicidad||''))+
+        kv('Modalidad',l.tipo==='cuotas'?('Cuotas ('+num(l.numCuotas)+')'):'Cobro único')+
+        kv('Total a pagar',money(c.total))+
+        kv('Desembolso',fmtDate(l.fechaDesembolso))+
+        kv('Vence',fmtDate(l.fechaVencimiento))+
+        (cl.doc?kv('Documento',esc(cl.doc)):'')+
+        (cl.tel?kv('Teléfono',esc(cl.tel)):'')+
+        (cl.dir?kvFull('Dirección',esc(cl.dir)):'')+
+        (l.notas?kvFull('Notas',esc(l.notas)):'')+
+        kvFull('Registrado por',esc(l.registradoPor||'—')+' · '+fmtDateTime(l.createdAt))+
+      '</div>'+
+      (l.evidenciaId?'<div class="saldo-lbl" style="margin:14px 0 6px">Evidencia</div>'+evid:'')+
+      '</div>';
+
+    var acts='<div class="btnrow">'+
+      (c.estado==='pagado'?'':'<button class="btn" data-act="newPayment">＋ Registrar pago</button>')+
+      '</div>';
+
+    var hist='';
+    if(c.pagos.length){
+      hist='<div class="sectitle">Historial de pagos</div><div class="list">'+
+        c.pagos.map(function(p){
+          var tl=p.tipo==='interes'?'Interés':(p.tipo==='capital'?'Capital':'Cuota');
+          var tb=p.tipo==='interes'?'b-int':(p.tipo==='capital'?'b-cap':'b-cuota');
+          return '<div class="row">'+
+            (p.evidenciaId?'<button class="av" data-view="'+esc(p.evidenciaId)+'" style="background:var(--inset);color:var(--muted)">📷</button>':'<span class="av" style="background:var(--good-soft);color:var(--good)">✓</span>')+
+            '<span class="mid"><span class="nm">'+money(p.monto)+'</span>'+
+            '<span class="meta">'+fmtDateTime(p.createdAt)+' · '+esc(p.registradoPor||'')+'</span></span>'+
+            '<span class="right"><span class="badge '+tb+'">'+tl+'</span></span></div>';
+        }).join('')+'</div>';
+    }
+
+    var danger='<div style="margin-top:18px"><button class="btn danger" data-act="delLoan">Eliminar este préstamo</button></div>';
+
+    return head+'<div class="scroll" style="padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))">'+
+      saldoCard+acts+info+hist+danger+'</div>';
+  }
+  function kv(k,v){return '<div><div class="k">'+esc(k)+'</div><div class="v tnum">'+v+'</div></div>';}
+  function kvFull(k,v){return '<div class="full"><div class="k">'+esc(k)+'</div><div class="v">'+v+'</div></div>';}
+
+  /* ---------- form: nuevo préstamo ---------- */
+  function viewLoanForm(){
+    var di=(S.config&&S.config.interesDefault)||10;
+    var isC=S.loanType==='cuotas';
+    var head='<div class="dethead"><button class="iconbtn" data-act="back">‹</button><div class="t">Nuevo préstamo</div></div>';
+    var form='<div class="formwrap">'+
+      (S.error?'<div class="err">'+esc(S.error)+'</div>':'')+
+      '<form id="loanForm">'+
+      '<div class="sectitle">Cliente</div>'+
+      '<div class="field"><label>Nombre del cliente <span class="req">*</span></label><input class="input" id="f_nombre" placeholder="Nombre y apellido" autocomplete="off"></div>'+
+      '<div class="two">'+
+        '<div class="field"><label>Documento</label><input class="input" id="f_doc" inputmode="numeric" placeholder="Cédula"></div>'+
+        '<div class="field"><label>Teléfono</label><input class="input" id="f_tel" inputmode="tel" placeholder="Celular"></div>'+
+      '</div>'+
+      '<div class="field"><label>Dirección / referencia</label><input class="input" id="f_dir" placeholder="Opcional"></div>'+
+
+      '<div class="sectitle">Préstamo</div>'+
+      '<div class="field"><label>Monto prestado (capital) <span class="req">*</span></label><input class="input tnum" id="f_monto" inputmode="numeric" placeholder="0"></div>'+
+      '<div class="field"><label>Modalidad</label><div class="toggle">'+
+        '<button type="button" data-ltype="unico" aria-pressed="'+(!isC)+'">Cobro único</button>'+
+        '<button type="button" data-ltype="cuotas" aria-pressed="'+isC+'">Por cuotas</button>'+
+      '</div></div>'+
+      '<div class="two">'+
+        '<div class="field"><label>Interés (%) <span class="req">*</span></label><input class="input tnum" id="f_int" inputmode="decimal" value="'+di+'"></div>'+
+        '<div class="field"><label>Periodicidad</label><select class="select" id="f_per">'+
+          perOpt('mensual')+perOpt('quincenal')+perOpt('semanal')+perOpt('único')+
+        '</select></div>'+
+      '</div>'+
+      (isC?
+        '<div class="two">'+
+          '<div class="field"><label>N° de cuotas</label><input class="input tnum" id="f_ncuo" inputmode="numeric" placeholder="Ej: 12"></div>'+
+          '<div class="field"><label>Valor por cuota</label><input class="input tnum" id="f_vcuo" inputmode="numeric" placeholder="0"></div>'+
+        '</div>':'')+
+      '<div class="two">'+
+        '<div class="field"><label>Fecha de desembolso</label><input class="input" id="f_fdes" type="date"></div>'+
+        '<div class="field"><label>Fecha de vencimiento</label><input class="input" id="f_fven" type="date"></div>'+
+      '</div>'+
+
+      '<div class="sectitle">Evidencia <span class="req">*</span></div>'+
+      '<label class="photo'+(S.draftURL?' has':'')+'" id="photoBox">'+
+        (S.draftURL?'<img src="'+S.draftURL+'" alt="Evidencia seleccionada">':
+          '<div class="ic">📷</div><div class="t">Tomar o subir foto</div><div class="s">Soporte del desembolso (obligatorio)</div>')+
+        '<input type="file" id="f_foto" accept="image/*" capture="environment" hidden>'+
+      '</label>'+
+      '<div class="hint">La foto es obligatoria. Al cargarla defines el % de interés arriba.</div>'+
+
+      '<div class="field" style="margin-top:14px"><label>Notas</label><textarea class="input" id="f_notas" placeholder="Opcional"></textarea></div>'+
+
+      '<button class="btn" type="submit" style="margin-top:4px">Guardar préstamo</button>'+
+      '</form></div>';
+    return head+form;
+  }
+  function perOpt(v){return '<option value="'+v+'"'+(S.periodic===v?' selected':'')+'>'+v.charAt(0).toUpperCase()+v.slice(1)+'</option>';}
+
+  async function doLoan(){
+    S.error='';
+    var nombre=qs('#f_nombre').value.trim();
+    var monto=num(qs('#f_monto').value);
+    var intr=num(qs('#f_int').value);
+    if(!nombre){S.error='Escribe el nombre del cliente.';return render();}
+    if(monto<=0){S.error='El monto prestado debe ser mayor a 0.';return render();}
+    if(!S.draftFile){S.error='Debes cargar la foto de evidencia.';return render();}
+    savingOn('Subiendo evidencia…');
+    try{
+      var up=await ASSETS.upload(S.draftFile, S.draftFile.type?undefined:{type:'image/jpeg'});
+      var doc={
+        cliente:{nombre:nombre,doc:qs('#f_doc').value.trim(),tel:qs('#f_tel').value.trim(),dir:qs('#f_dir').value.trim()},
+        monto:monto, interesPct:intr, periodicidad:qs('#f_per').value, tipo:S.loanType,
+        numCuotas:S.loanType==='cuotas'?num((qs('#f_ncuo')||{}).value):0,
+        valorCuota:S.loanType==='cuotas'?num((qs('#f_vcuo')||{}).value):0,
+        fechaDesembolso:qs('#f_fdes').value||'', fechaVencimiento:qs('#f_fven').value||'',
+        evidenciaId:up.id, notas:qs('#f_notas').value.trim(),
+        registradoPor:S.user, createdAt:Date.now()
+      };
+      var ref=await DB.collection('loans').add(doc);
+      clearDraft(); S.selId=ref.id; S.screen='detail';
+    }catch(e){S.error='No se pudo guardar: '+(e&&e.message||e);}
+    savingOff(); render();
+  }
+
+  /* ---------- form: nuevo pago ---------- */
+  function viewPayForm(){
+    var l=loanById(S.selId); if(!l){S.screen='home';return viewHome();}
+    var c=calc(l);
+    var head='<div class="dethead"><button class="iconbtn" data-act="backDetail">‹</button><div class="t">Registrar pago</div></div>';
+    return head+'<div class="formwrap">'+
+      (S.error?'<div class="err">'+esc(S.error)+'</div>':'')+
+      '<div class="card" style="margin-bottom:16px"><div class="saldo-lbl">'+esc((l.cliente&&l.cliente.nombre)||'Cliente')+' · saldo</div>'+
+        '<div class="saldo-amt tnum" style="font-size:26px">'+money(c.saldo)+'</div></div>'+
+      '<form id="payForm">'+
+      '<div class="field"><label>Monto del pago <span class="req">*</span></label><input class="input tnum" id="p_monto" inputmode="numeric" placeholder="0" value="'+(l.tipo==='cuotas'&&num(l.valorCuota)?num(l.valorCuota):'')+'"></div>'+
+      '<div class="field"><label>Tipo de pago</label><div class="toggle">'+
+        '<button type="button" data-ptype="cuota" aria-pressed="'+(S.payType==='cuota')+'">Cuota</button>'+
+        '<button type="button" data-ptype="interes" aria-pressed="'+(S.payType==='interes')+'">Interés</button>'+
+        '<button type="button" data-ptype="capital" aria-pressed="'+(S.payType==='capital')+'">Capital</button>'+
+      '</div></div>'+
+      '<div class="field"><label>Fecha</label><input class="input" id="p_fecha" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
+      '<div class="sectitle">Evidencia del pago</div>'+
+      '<label class="photo'+(S.draftURL?' has':'')+'" id="photoBox">'+
+        (S.draftURL?'<img src="'+S.draftURL+'" alt="Evidencia del pago">':
+          '<div class="ic">📷</div><div class="t">Foto del pago (opcional)</div>')+
+        '<input type="file" id="p_foto" accept="image/*" capture="environment" hidden>'+
+      '</label>'+
+      '<div class="field" style="margin-top:14px"><label>Nota</label><input class="input" id="p_nota" placeholder="Opcional"></div>'+
+      '<button class="btn" type="submit">Guardar pago</button>'+
+      '</form></div>';
+  }
+  async function doPay(){
+    S.error='';
+    var l=loanById(S.selId); if(!l){S.screen='home';return render();}
+    var monto=num(qs('#p_monto').value);
+    if(monto<=0){S.error='El monto del pago debe ser mayor a 0.';return render();}
+    savingOn('Guardando pago…');
+    try{
+      var evid='';
+      if(S.draftFile){var up=await ASSETS.upload(S.draftFile,S.draftFile.type?undefined:{type:'image/jpeg'});evid=up.id;}
+      await DB.collection('payments').add({
+        loanId:l.id, monto:monto, tipo:S.payType, fecha:qs('#p_fecha').value||'',
+        evidenciaId:evid, nota:qs('#p_nota').value.trim(),
+        registradoPor:S.user, createdAt:Date.now()
+      });
+      clearDraft(); S.screen='detail';
+    }catch(e){S.error='No se pudo guardar: '+(e&&e.message||e);}
+    savingOff(); render();
+  }
+
+  async function delLoan(){
+    var l=loanById(S.selId); if(!l)return;
+    var ok=await confirmBox('Eliminar préstamo','Se borrará el préstamo de '+((l.cliente&&l.cliente.nombre)||'este cliente')+' y sus pagos quedarán sin préstamo. ¿Continuar?');
+    if(!ok)return;
+    savingOn('Eliminando…');
+    try{ await DB.doc('loans/'+l.id).delete(); S.screen='home'; }
+    catch(e){ S.error='No se pudo eliminar.'; }
+    savingOff(); render();
+  }
+
+  /* ---------- draft foto ---------- */
+  function setDraft(file){
+    clearDraft();
+    if(file){S.draftFile=file; try{S.draftURL=URL.createObjectURL(file);}catch(e){S.draftURL=null;}}
+    render();
+  }
+  function clearDraft(){ if(S.draftURL){try{URL.revokeObjectURL(S.draftURL);}catch(e){}} S.draftFile=null; S.draftURL=null; }
+
+  /* ---------- overlays ---------- */
+  function lightbox(id){
+    var ov=document.createElement('div');ov.className='overlay lightbox';
+    ov.innerHTML='<img src="/_blob/'+esc(id)+'" alt="Evidencia">';
+    ov.addEventListener('click',function(){document.body.removeChild(ov);});
+    document.body.appendChild(ov);
+  }
+  function confirmBox(title,msg){
+    return new Promise(function(res){
+      var ov=document.createElement('div');ov.className='overlay';
+      ov.innerHTML='<div class="confirm"><h3>'+esc(title)+'</h3><p>'+esc(msg)+'</p>'+
+        '<div class="btnrow"><button class="btn sec" data-c="no">Cancelar</button>'+
+        '<button class="btn danger" data-c="yes">Eliminar</button></div></div>';
+      ov.addEventListener('click',function(e){
+        var b=e.target.closest('[data-c]'); if(!b&&e.target!==ov)return;
+        var yes=b&&b.getAttribute('data-c')==='yes';
+        document.body.removeChild(ov); res(!!yes);
+      });
+      document.body.appendChild(ov);
+    });
+  }
+  var savingEl=null;
+  function savingOn(t){ savingOff(); savingEl=document.createElement('div');savingEl.className='saving';
+    savingEl.innerHTML='<div class="box"><div class="spin"></div><div style="margin-top:12px;font-weight:600">'+esc(t||'Guardando…')+'</div></div>';
+    document.body.appendChild(savingEl); }
+  function savingOff(){ if(savingEl&&savingEl.parentNode){savingEl.parentNode.removeChild(savingEl);} savingEl=null; }
+
+  /* ---------- bind ---------- */
+  function bind(){
+    var f;
+    if(f=qs('#setupForm'))f.addEventListener('submit',function(e){e.preventDefault();doSetup();});
+    if(f=qs('#loginForm'))f.addEventListener('submit',function(e){e.preventDefault();doLogin();});
+    if(f=qs('#loanForm'))f.addEventListener('submit',function(e){e.preventDefault();doLoan();});
+    if(f=qs('#payForm'))f.addEventListener('submit',function(e){e.preventDefault();doPay();});
+    var fi;
+    if(fi=qs('#f_foto'))fi.addEventListener('change',function(e){if(e.target.files[0])setDraft(e.target.files[0]);});
+    if(fi=qs('#p_foto'))fi.addEventListener('change',function(e){if(e.target.files[0])setDraft(e.target.files[0]);});
+  }
+
+  app.addEventListener('click',function(e){
+    var el;
+    if(el=e.target.closest('[data-user]')){S.user=el.getAttribute('data-user');S.error='';render();return;}
+    if(el=e.target.closest('[data-tab]')){S.tab=el.getAttribute('data-tab');render();return;}
+    if(el=e.target.closest('[data-ltype]')){S.loanType=el.getAttribute('data-ltype');render();return;}
+    if(el=e.target.closest('[data-ptype]')){S.payType=el.getAttribute('data-ptype');
+      el.parentNode.querySelectorAll('[data-ptype]').forEach(function(b){b.setAttribute('aria-pressed',b===el);});return;}
+    if(el=e.target.closest('[data-open]')){S.selId=el.getAttribute('data-open');S.screen='detail';render();return;}
+    if(el=e.target.closest('[data-view]')){lightbox(el.getAttribute('data-view'));return;}
+    var act=e.target.closest('[data-act]'); if(!act)return;
+    switch(act.getAttribute('data-act')){
+      case 'logout': S.user=null;S.screen='login';S.error='';render();break;
+      case 'newLoan': clearDraft();S.loanType='unico';S.periodic='mensual';S.error='';S.screen='newLoan';render();break;
+      case 'newPayment': clearDraft();S.payType='cuota';S.error='';S.screen='newPayment';render();break;
+      case 'back': clearDraft();S.error='';S.screen='home';render();break;
+      case 'backDetail': clearDraft();S.error='';S.screen='detail';render();break;
+      case 'delLoan': delLoan();break;
+    }
+  });
+
+  boot();
+})();
+</script>

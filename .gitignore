@@ -1,0 +1,14 @@
+# Archivos del sistema
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# OneDrive / temporales
+*.tmp
+~$*
+
+# Entornos / dependencias (por si a futuro se agrega build)
+node_modules/
+dist/
+.env
+.env.*
