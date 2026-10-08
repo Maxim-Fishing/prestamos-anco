@@ -122,6 +122,11 @@ table.cuotas tr.q-venc td{background:var(--bad-soft)}
 .btn:active{transform:translateY(1px)}
 .btn.sec{background:var(--surface);color:var(--ink);border:1px solid var(--line);box-shadow:none}
 .btn.danger{background:var(--bad-soft);color:var(--bad);box-shadow:none}
+.btn.wa{background:#25D366;color:#06210f}
+.waicon{background:#25D366;color:#06210f;font-weight:700;font-size:11px;border-radius:7px;padding:4px 7px;margin-left:8px;vertical-align:middle}
+.wacard{background:var(--brand-soft);border:1px solid var(--brand);border-radius:var(--r);padding:14px 16px;margin-bottom:14px}
+.wacard .wc-h{font-family:var(--display);font-weight:700;font-size:15px}
+.wacard .wc-s{font-size:13px;color:var(--muted);margin-top:4px}
 .btnrow{display:flex;gap:10px;margin-bottom:14px}
 .btnrow .btn{flex:1}
 .formwrap{flex:1;overflow-y:auto;padding:18px 16px 28px}
@@ -196,7 +201,7 @@ let unsubLoans=null, unsubPays=null;
 const app=document.getElementById('app');
 const S={ screen:'loading', config:null, loans:[], payments:[], selId:null, tab:'pagos',
   loanType:'unico', periodic:'mensual', payType:'cuota',
-  draftFile:null, draftURL:null, error:'', loanDraft:{} };
+  draftFile:null, draftURL:null, error:'', loanDraft:{}, justSaved:false, justPayId:null };
 
 /* ---------- utils ---------- */
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -256,6 +261,43 @@ function totals(){
   return {prestado,recuperado,porCobrar,enMora,base,saldoBase:base-prestado+recuperado,activos};
 }
 const loanById=id=>S.loans.find(l=>l.id===id)||null;
+
+/* ---------- WhatsApp (click para chatear, gratis) ---------- */
+function waNum(tel){ let d=String(tel||'').replace(/\D/g,''); if(!d) return '';
+  if(d.length===10 && d[0]==='3') d='57'+d; return d; }
+function openWA(tel,text){
+  const n=waNum(tel);
+  const url=(n?('https://wa.me/'+n):'https://api.whatsapp.com/send')+(n?'?':'?')+'text='+encodeURIComponent(text);
+  window.open(url,'_blank');
+}
+function tipoLabel(t){ return t==='interes'?'Interés':(t==='capital'?'Abono a capital':'Cuota'); }
+function msgLoan(l,c){
+  const nm=(l.cliente&&l.cliente.nombre)||'';
+  let m='*Préstamos ANCO*\n';
+  m+='Hola '+(nm||'')+', este es el resumen de tu préstamo:\n';
+  m+='• Monto prestado: '+money(l.monto)+'\n';
+  m+='• Interés: '+num(l.interesPct)+'% '+(l.periodicidad||'')+'\n';
+  m+='• Modalidad: '+(c.esCuotas?('Cuotas ('+num(l.numCuotas)+')'):'Cobro único')+'\n';
+  m+='• Total a pagar: '+money(c.total)+'\n';
+  if(c.esCuotas){ m+='• Valor por cuota: '+money(c.valorCuota)+'\n';
+    if(c.proxima) m+='• Primera cuota: '+fmtD(c.proxima.due)+'\n'; }
+  if(l.fechaVencimiento) m+='• Fecha límite: '+fmtDate(l.fechaVencimiento)+'\n';
+  m+='\nGracias por tu confianza.';
+  return m;
+}
+function msgPago(l,c,p){
+  const nm=(l.cliente&&l.cliente.nombre)||'';
+  let m='*Préstamos ANCO*\n';
+  m+='Hola '+(nm||'')+', confirmamos tu pago:\n';
+  m+='• Valor pagado: '+money(p.monto)+'\n';
+  m+='• Tipo: '+tipoLabel(p.tipo)+'\n';
+  m+='• Fecha: '+(p.fecha?fmtDate(p.fecha):fmtDateTime(p.createdAt))+'\n';
+  m+='• Saldo pendiente: '+money(c.saldo)+'\n';
+  if(c.esCuotas){ m+='• Cuotas pagadas: '+c.cuotasPag+' de '+num(l.numCuotas)+'\n';
+    if(c.proxima) m+='• Próxima cuota: '+fmtD(c.proxima.due)+' por '+money(c.proxima.saldoCuota)+'\n'; }
+  m+='\n¡Gracias!';
+  return m;
+}
 
 /* ---------- boot / auth ---------- */
 function boot(){
@@ -444,15 +486,26 @@ function viewDetail(){
     (cl.dir?kvFull('Dirección',esc(cl.dir)):'')+(l.notas?kvFull('Notas',esc(l.notas)):'')+
     kvFull('Registrado por',esc(l.registradoPor||'—')+' · '+fmtDateTime(l.createdAt))+'</div>'+
     (l.evidenciaUrl?'<div class="saldo-lbl" style="margin:14px 0 6px">Evidencia</div>'+evid:'')+'</div>';
-  const acts='<div class="btnrow">'+(c.estado==='pagado'?'':'<button class="btn" data-act="newPayment">＋ Registrar pago</button>')+'</div>';
+  let waCard='';
+  if(S.justSaved||S.justPayId){
+    const tel=(cl.tel||'').trim();
+    const act = S.justPayId ? ('data-wapay="'+esc(S.justPayId)+'"') : 'data-act="waLoan"';
+    const titulo = S.justPayId ? 'Pago guardado' : 'Préstamo guardado';
+    const sub = tel ? ('Envía el comprobante a '+esc(cl.nombre||'el cliente')+' por WhatsApp.') : 'Este cliente no tiene teléfono guardado; WhatsApp te dejará elegir el contacto.';
+    waCard='<div class="wacard"><div class="wc-h">✅ '+titulo+'</div><div class="wc-s">'+sub+'</div>'+
+      '<div class="btnrow" style="margin:12px 0 0"><button class="btn wa" '+act+'>Enviar por WhatsApp</button>'+
+      '<button class="btn sec" data-act="waDismiss" style="flex:0 0 auto;min-width:92px">Omitir</button></div></div>';
+  }
+  const acts='<div class="btnrow">'+(c.estado==='pagado'?'':'<button class="btn" data-act="newPayment">＋ Registrar pago</button>')+
+    '<button class="btn wa" data-act="waLoan">WhatsApp</button></div>';
   let hist='';
   if(c.pagos.length){hist='<div class="sectitle">Historial de pagos</div><div class="list">'+c.pagos.map(p=>{
     const tl=p.tipo==='interes'?'Interés':(p.tipo==='capital'?'Capital':'Cuota');const tb=p.tipo==='interes'?'b-int':(p.tipo==='capital'?'b-cap':'b-cuota');
     return '<div class="row">'+(p.evidenciaUrl?'<button class="av" data-viewimg="'+esc(p.evidenciaUrl)+'" style="background:var(--inset);color:var(--muted)">📷</button>':'<span class="av" style="background:var(--good-soft);color:var(--good)">✓</span>')+
       '<span class="mid"><span class="nm">'+money(p.monto)+'</span><span class="meta">'+fmtDateTime(p.createdAt)+' · '+esc(p.registradoPor||'')+'</span></span>'+
-      '<span class="right"><span class="badge '+tb+'">'+tl+'</span></span></div>';}).join('')+'</div>';}
+      '<span class="right"><span class="badge '+tb+'">'+tl+'</span> <button class="waicon" data-wapay="'+esc(p.id)+'" title="Enviar por WhatsApp">WA</button></span></div>';}).join('')+'</div>';}
   const danger='<div style="margin-top:18px"><button class="btn danger" data-act="delLoan">Eliminar este préstamo</button></div>';
-  return head+'<div class="scroll" style="padding-bottom:40px">'+saldoCard+acts+planCard+info+hist+danger+'</div>';
+  return head+'<div class="scroll" style="padding-bottom:40px">'+waCard+saldoCard+acts+planCard+info+hist+danger+'</div>';
 }
 const kv=(k,v)=>'<div><div class="k">'+esc(k)+'</div><div class="v tnum">'+v+'</div></div>';
 const kvFull=(k,v)=>'<div class="full"><div class="k">'+esc(k)+'</div><div class="v">'+v+'</div></div>';
@@ -546,7 +599,7 @@ async function doLoan(){
       fechaDesembolso:qs('#f_fdes').value||'',fechaVencimiento:qs('#f_fven').value||'',
       evidenciaUrl:url,notas:qs('#f_notas').value.trim(),registradoPor:meNombre,createdAt:Date.now()};
     const ref=await addDoc(collection(db,'loans'),docu);
-    clearDraft(); S.loanDraft={}; S.selId=ref.id; S.screen='detail';
+    clearDraft(); S.loanDraft={}; S.selId=ref.id; S.justSaved=true; S.justPayId=null; S.screen='detail';
   }catch(e){ S.error='No se pudo guardar: '+(e&&e.message||e); }
   savingOff(); render();
 }
@@ -579,9 +632,9 @@ async function doPay(){
   try{
     let url='';
     if(S.draftFile) url=await uploadPhoto(S.draftFile,'pagos');
-    await addDoc(collection(db,'payments'),{loanId:l.id,monto,tipo:S.payType,fecha:qs('#p_fecha').value||'',
+    const pref=await addDoc(collection(db,'payments'),{loanId:l.id,monto,tipo:S.payType,fecha:qs('#p_fecha').value||'',
       evidenciaUrl:url,nota:qs('#p_nota').value.trim(),registradoPor:meNombre,createdAt:Date.now()});
-    clearDraft(); S.screen='detail';
+    clearDraft(); S.justSaved=false; S.justPayId=pref.id; S.screen='detail';
   }catch(e){ S.error='No se pudo guardar: '+(e&&e.message||e); }
   savingOff(); render();
 }
@@ -627,16 +680,21 @@ app.addEventListener('click',e=>{
   if(el=e.target.closest('[data-tab]')){S.tab=el.getAttribute('data-tab');render();return;}
   if(el=e.target.closest('[data-ltype]')){captureLoanForm();S.loanType=el.getAttribute('data-ltype');render();return;}
   if(el=e.target.closest('[data-ptype]')){S.payType=el.getAttribute('data-ptype');el.parentNode.querySelectorAll('[data-ptype]').forEach(b=>b.setAttribute('aria-pressed',b===el));return;}
-  if(el=e.target.closest('[data-open]')){S.selId=el.getAttribute('data-open');S.screen='detail';render();return;}
+  if(el=e.target.closest('[data-wapay]')){const p=S.payments.find(x=>x.id===el.getAttribute('data-wapay'));
+    if(p){const l=loanById(p.loanId); if(l) openWA((l.cliente&&l.cliente.tel)||'', msgPago(l,calc(l),p));}
+    S.justPayId=null; return;}
+  if(el=e.target.closest('[data-open]')){S.selId=el.getAttribute('data-open');S.justSaved=false;S.justPayId=null;S.screen='detail';render();return;}
   if(el=e.target.closest('[data-viewimg]')){lightbox(el.getAttribute('data-viewimg'));return;}
   const act=e.target.closest('[data-act]'); if(!act)return;
   switch(act.getAttribute('data-act')){
-    case 'logout': signOut(auth); break;
-    case 'newLoan': clearDraft();S.loanDraft={};S.loanType='unico';S.periodic='mensual';S.error='';S.screen='newLoan';render();break;
-    case 'newPayment': clearDraft();S.payType='cuota';S.error='';S.screen='newPayment';render();break;
-    case 'back': clearDraft();S.error='';S.screen='home';render();break;
+    case 'logout': S.justSaved=false;S.justPayId=null; signOut(auth); break;
+    case 'newLoan': clearDraft();S.loanDraft={};S.loanType='unico';S.periodic='mensual';S.error='';S.justSaved=false;S.justPayId=null;S.screen='newLoan';render();break;
+    case 'newPayment': clearDraft();S.payType='cuota';S.error='';S.justSaved=false;S.justPayId=null;S.screen='newPayment';render();break;
+    case 'back': clearDraft();S.error='';S.justSaved=false;S.justPayId=null;S.screen='home';render();break;
     case 'backDetail': clearDraft();S.error='';S.screen='detail';render();break;
     case 'delLoan': delLoan(); break;
+    case 'waLoan': { const l=loanById(S.selId); if(l) openWA((l.cliente&&l.cliente.tel)||'', msgLoan(l,calc(l))); S.justSaved=false; break; }
+    case 'waDismiss': S.justSaved=false;S.justPayId=null; render(); break;
   }
 });
 
