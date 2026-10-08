@@ -100,6 +100,22 @@ h1,h2,h3{margin:0;font-family:var(--display);font-weight:600;letter-spacing:-.01
 .kv .k{font-size:11.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
 .kv .v{font-weight:600;font-size:14.5px;margin-top:1px}
 .kv .full{grid-column:1 / -1}
+.odbanner{background:var(--bad-soft);border:1px solid var(--bad);border-radius:var(--r);padding:12px 14px;margin-bottom:16px}
+.od-h{color:var(--bad);font-weight:700;font-size:13.5px;margin-bottom:8px}
+.od-row{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line);margin-top:6px;text-align:left}
+.od-nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.od-det{color:var(--bad);font-weight:700;font-size:12.5px;flex:none}
+.plan-sum{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.plan-sum>div{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;display:flex;flex-direction:column;gap:2px}
+.ps-k{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+.ps-v{font-weight:700;font-size:13.5px}
+.ps-v.bad{color:var(--bad)}
+.plan-tbl{overflow-x:auto}
+table.cuotas{width:100%;border-collapse:collapse;font-size:13px}
+table.cuotas th{text-align:left;color:var(--faint);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding:6px 8px;border-bottom:1px solid var(--line)}
+table.cuotas td{padding:8px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.cuotas tr:last-child td{border-bottom:0}
+table.cuotas tr.q-venc td{background:var(--bad-soft)}
 .evid{margin-top:12px;border-radius:12px;overflow:hidden;border:1px solid var(--line);display:block;width:100%}
 .evid img{display:block;width:100%;max-height:240px;object-fit:cover}
 .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:var(--brand);color:var(--on-brand);border-radius:13px;padding:14px;font-weight:700;font-family:var(--display);font-size:15px;box-shadow:var(--shadow)}
@@ -194,16 +210,42 @@ function fmtDateTime(ms){if(!ms)return '';const d=new Date(ms);return d.toLocale
 const qs=s=>app.querySelector(s);
 const dataScreen=()=>S.screen==='home'||S.screen==='detail';
 
+function addPeriod(d,per,n){const x=new Date(d.getTime());
+  if(per==='mensual')x.setMonth(x.getMonth()+n); else if(per==='quincenal')x.setDate(x.getDate()+15*n); else x.setDate(x.getDate()+7*n); return x;}
+function cuotaStart(loan){ const per=loan.periodicidad||'mensual';
+  if(loan.fechaPrimeraCuota) return new Date(loan.fechaPrimeraCuota+'T00:00:00');
+  if(loan.fechaDesembolso) return addPeriod(new Date(loan.fechaDesembolso+'T00:00:00'),per,1);
+  return addPeriod(new Date(loan.createdAt||Date.now()),per,1); }
+function fmtD(d){try{return d.toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'});}catch(e){return '—';}}
+
 function calc(loan){
   const pagos=S.payments.filter(p=>p.loanId===loan.id).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   const pagado=pagos.reduce((s,p)=>s+num(p.monto),0);
-  let total;
-  if(loan.tipo==='cuotas'){ total=num(loan.valorCuota)*num(loan.numCuotas); if(!total) total=num(loan.monto)*(1+num(loan.interesPct)/100); }
-  else { total=num(loan.monto)*(1+num(loan.interesPct)/100); }
+  const total=num(loan.monto)*(1+num(loan.interesPct)/100);
   const saldo=Math.max(0,total-pagado);
-  const estado = saldo<=0?'pagado':(loan.fechaVencimiento && new Date(loan.fechaVencimiento+'T00:00:00')<today0()?'mora':'activo');
-  const cuotasPag=(loan.tipo==='cuotas'&&num(loan.valorCuota))?Math.min(num(loan.numCuotas),Math.floor(pagado/num(loan.valorCuota))):null;
-  return {pagos,pagado,total,saldo,estado,cuotasPag};
+  const esCuotas = loan.tipo==='cuotas' && num(loan.numCuotas)>0;
+  let cuotas=[], proxima=null, vencidasN=0, vencidasMonto=0, cuotasPag=0, valorCuota=0;
+  if(esCuotas){
+    const N=num(loan.numCuotas), per=loan.periodicidad||'mensual';
+    const manual=num(loan.valorCuota)>0;
+    valorCuota = manual?num(loan.valorCuota):Math.round(total/N);
+    const start=cuotaStart(loan); let rest=pagado;
+    for(let i=1;i<=N;i++){
+      const mv = (!manual && i===N) ? Math.max(0,total-valorCuota*(N-1)) : valorCuota;
+      const due=addPeriod(start,per,i-1);
+      const cub=Math.min(mv,Math.max(0,rest)); rest-=cub;
+      const pagada=cub>=mv-1, parcial=cub>0&&!pagada, venc=!pagada&&due<today0();
+      if(pagada)cuotasPag++;
+      if(venc){vencidasN++; vencidasMonto+=(mv-cub);}
+      if(!pagada&&!proxima) proxima={i,due,monto:mv,saldoCuota:mv-cub};
+      cuotas.push({i,due,monto:mv,cubierto:cub,estado:pagada?'pagada':(venc?'vencida':(parcial?'parcial':'pendiente'))});
+    }
+  }
+  let estado;
+  if(saldo<=0) estado='pagado';
+  else if(esCuotas) estado = vencidasN>0?'mora':'activo';
+  else estado = (loan.fechaVencimiento && new Date(loan.fechaVencimiento+'T00:00:00')<today0())?'mora':'activo';
+  return {pagos,pagado,total,saldo,estado,esCuotas,cuotas,proxima,vencidasN,vencidasMonto,cuotasPag,valorCuota};
 }
 function totals(){
   const prestado=S.loans.reduce((s,l)=>s+num(l.monto),0);
@@ -340,7 +382,16 @@ function viewHome(){
   const seg='<div class="seg"><button data-tab="pagos" aria-selected="'+(S.tab==='pagos')+'">Pagos recientes</button>'+
     '<button data-tab="prestamos" aria-selected="'+(S.tab==='prestamos')+'">Préstamos</button></div>';
   const body=S.tab==='pagos'?listPagos():listPrestamos();
-  return head+'<div class="scroll">'+chips+seg+body+'</div><button class="fab" data-act="newLoan"><span class="plus">+</span> Préstamo</button>';
+  return head+'<div class="scroll">'+overdueBanner()+chips+seg+body+'</div><button class="fab" data-act="newLoan"><span class="plus">+</span> Préstamo</button>';
+}
+function overdueBanner(){
+  const items=S.loans.map(l=>({l,c:calc(l)})).filter(x=>x.c.estado==='mora');
+  if(!items.length) return '';
+  const tot=items.reduce((s,x)=>s+(x.c.esCuotas?x.c.vencidasMonto:x.c.saldo),0);
+  const rows=items.map(x=>{const nm=(x.l.cliente&&x.l.cliente.nombre)||'Cliente';
+    const det=x.c.esCuotas?(x.c.vencidasN+' cuota'+(x.c.vencidasN===1?'':'s')+' vencida'+(x.c.vencidasN===1?'':'s')+' · '+money(x.c.vencidasMonto)):('Venció · '+money(x.c.saldo));
+    return '<button class="od-row" data-open="'+esc(x.l.id)+'"><span class="od-nm">'+esc(nm)+'</span><span class="od-det tnum">'+det+'</span></button>';}).join('');
+  return '<div class="odbanner"><div class="od-h">⚠ '+items.length+' préstamo'+(items.length===1?'':'s')+' con pagos vencidos · '+money(tot)+'</div>'+rows+'</div>';
 }
 function listPagos(){
   const pagos=S.payments.slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
@@ -378,11 +429,12 @@ function viewDetail(){
   const head='<div class="dethead"><button class="iconbtn" data-act="back">‹</button><div><div class="t">'+esc(cl.nombre||'Cliente')+'</div></div>'+
     '<div style="margin-left:auto"><span class="badge b-'+c.estado+'">'+c.estado+'</span></div></div>';
   let prog='';
-  if(l.tipo==='cuotas'&&num(l.numCuotas)){const pct=Math.min(100,Math.round((c.cuotasPag/num(l.numCuotas))*100));
-    prog='<div class="saldo-sub" style="margin-top:12px">Cuotas pagadas: '+c.cuotasPag+' de '+num(l.numCuotas)+' ('+money(l.valorCuota)+' c/u)</div><div class="prog"><span style="width:'+pct+'%"></span></div>';}
+  if(c.esCuotas){const pct=Math.min(100,Math.round((c.cuotasPag/num(l.numCuotas))*100));
+    prog='<div class="saldo-sub" style="margin-top:12px">Cuotas pagadas: '+c.cuotasPag+' de '+num(l.numCuotas)+' ('+money(c.valorCuota)+' c/u)</div><div class="prog"><span style="width:'+pct+'%"></span></div>';}
   const saldoCard='<div class="card"><div class="saldo-lbl">Saldo pendiente</div>'+
     '<div class="saldo-amt tnum" style="color:'+(c.estado==='pagado'?'var(--good)':(c.estado==='mora'?'var(--bad)':'var(--ink)'))+'">'+money(c.saldo)+'</div>'+
     '<div class="saldo-sub">Pagado '+money(c.pagado)+' de '+money(c.total)+'</div>'+prog+'</div>';
+  const planCard=cuotasCard(l,c);
   const evid=l.evidenciaUrl?'<button class="evid" data-viewimg="'+esc(l.evidenciaUrl)+'"><img src="'+esc(l.evidenciaUrl)+'" alt="Evidencia"></button>':'';
   const info='<div class="card"><div class="kv">'+
     kv('Capital prestado',money(l.monto))+kv('Interés',num(l.interesPct)+'% '+esc(l.periodicidad||''))+
@@ -400,13 +452,27 @@ function viewDetail(){
       '<span class="mid"><span class="nm">'+money(p.monto)+'</span><span class="meta">'+fmtDateTime(p.createdAt)+' · '+esc(p.registradoPor||'')+'</span></span>'+
       '<span class="right"><span class="badge '+tb+'">'+tl+'</span></span></div>';}).join('')+'</div>';}
   const danger='<div style="margin-top:18px"><button class="btn danger" data-act="delLoan">Eliminar este préstamo</button></div>';
-  return head+'<div class="scroll" style="padding-bottom:40px">'+saldoCard+acts+info+hist+danger+'</div>';
+  return head+'<div class="scroll" style="padding-bottom:40px">'+saldoCard+acts+planCard+info+hist+danger+'</div>';
 }
 const kv=(k,v)=>'<div><div class="k">'+esc(k)+'</div><div class="v tnum">'+v+'</div></div>';
 const kvFull=(k,v)=>'<div class="full"><div class="k">'+esc(k)+'</div><div class="v">'+v+'</div></div>';
+function cuotasCard(l,c){
+  if(!c.esCuotas) return '';
+  const resumen='<div class="plan-sum">'+
+    '<div><span class="ps-k">Próxima cuota</span><span class="ps-v">'+(c.proxima?(fmtD(c.proxima.due)+' · '+money(c.proxima.saldoCuota)):'—')+'</span></div>'+
+    '<div><span class="ps-k">Vencidas</span><span class="ps-v '+(c.vencidasN?'bad':'')+'">'+(c.vencidasN?(c.vencidasN+' · '+money(c.vencidasMonto)):'ninguna')+'</span></div>'+
+    '</div>';
+  const rows=c.cuotas.map(q=>{
+    const cls=q.estado==='pagada'?'b-pagado':(q.estado==='vencida'?'b-mora':(q.estado==='parcial'?'b-int':'b-cap'));
+    const lab=q.estado==='pagada'?'Pagada':(q.estado==='vencida'?'Vencida':(q.estado==='parcial'?'Parcial':'Pendiente'));
+    return '<tr class="'+(q.estado==='vencida'?'q-venc':'')+'"><td>'+q.i+'</td><td>'+fmtD(q.due)+'</td><td class="tnum">'+money(q.monto)+'</td><td><span class="badge '+cls+'">'+lab+'</span></td></tr>';
+  }).join('');
+  return '<div class="card"><div class="saldo-lbl" style="margin-bottom:10px">Plan de cuotas</div>'+resumen+
+    '<div class="plan-tbl"><table class="cuotas"><thead><tr><th>#</th><th>Vence</th><th>Valor</th><th>Estado</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
 
 function captureLoanForm(){
-  const map={nombre:'#f_nombre',doc:'#f_doc',tel:'#f_tel',dir:'#f_dir',monto:'#f_monto',intr:'#f_int',per:'#f_per',ncuo:'#f_ncuo',vcuo:'#f_vcuo',fdes:'#f_fdes',fven:'#f_fven',notas:'#f_notas'};
+  const map={nombre:'#f_nombre',doc:'#f_doc',tel:'#f_tel',dir:'#f_dir',monto:'#f_monto',intr:'#f_int',per:'#f_per',ncuo:'#f_ncuo',vcuo:'#f_vcuo',fprim:'#f_fprim',fdes:'#f_fdes',fven:'#f_fven',notas:'#f_notas'};
   for(const k in map){const e=qs(map[k]); if(e) S.loanDraft[k]=e.value;}
   if(S.loanDraft.per!==undefined) S.periodic=S.loanDraft.per;
 }
@@ -428,8 +494,9 @@ function viewLoanForm(){
       '<button type="button" data-ltype="cuotas" aria-pressed="'+isC+'">Por cuotas</button></div></div>'+
     '<div class="two"><div class="field"><label>Interés (%) <span class="req">*</span></label><input class="input tnum" id="f_int" inputmode="decimal" value="'+esc(di)+'"></div>'+
     '<div class="field"><label>Periodicidad</label><select class="select" id="f_per">'+perOpt('mensual')+perOpt('quincenal')+perOpt('semanal')+perOpt('único')+'</select></div></div>'+
-    (isC?'<div class="two"><div class="field"><label>N° de cuotas</label><input class="input tnum" id="f_ncuo" inputmode="numeric" placeholder="Ej: 12" value="'+esc(d.ncuo||'')+'"></div>'+
-    '<div class="field"><label>Valor por cuota</label><input class="input tnum" id="f_vcuo" inputmode="numeric" placeholder="0" value="'+esc(d.vcuo||'')+'"></div></div>':'')+
+    (isC?'<div class="two"><div class="field"><label>N° de cuotas <span class="req">*</span></label><input class="input tnum" id="f_ncuo" inputmode="numeric" placeholder="Ej: 12" value="'+esc(d.ncuo||'')+'"></div>'+
+    '<div class="field"><label>Valor por cuota</label><input class="input tnum" id="f_vcuo" inputmode="numeric" placeholder="auto" value="'+esc(d.vcuo||'')+'"></div></div>'+
+    '<div class="field"><label>Fecha de la primera cuota</label><input class="input" id="f_fprim" type="date" value="'+esc(d.fprim||'')+'"><div class="hint">Si lo dejas vacío, se calcula desde el desembolso. El valor por cuota se calcula solo si lo dejas en blanco.</div></div>':'')+
     '<div class="two"><div class="field"><label>Fecha de desembolso</label><input class="input" id="f_fdes" type="date" value="'+esc(d.fdes||'')+'"></div>'+
     '<div class="field"><label>Fecha de vencimiento</label><input class="input" id="f_fven" type="date" value="'+esc(d.fven||'')+'"></div></div>'+
     '<div class="sectitle">Evidencia <span class="req">*</span></div>'+
@@ -475,6 +542,7 @@ async function doLoan(){
       monto,interesPct:intr,periodicidad:qs('#f_per').value,tipo:S.loanType,
       numCuotas:S.loanType==='cuotas'?num((qs('#f_ncuo')||{}).value):0,
       valorCuota:S.loanType==='cuotas'?num((qs('#f_vcuo')||{}).value):0,
+      fechaPrimeraCuota:S.loanType==='cuotas'?((qs('#f_fprim')||{}).value||''):'',
       fechaDesembolso:qs('#f_fdes').value||'',fechaVencimiento:qs('#f_fven').value||'',
       evidenciaUrl:url,notas:qs('#f_notas').value.trim(),registradoPor:meNombre,createdAt:Date.now()};
     const ref=await addDoc(collection(db,'loans'),docu);
