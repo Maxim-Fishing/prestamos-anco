@@ -671,7 +671,7 @@ function bind(){
   if(f=qs('#loanForm'))f.addEventListener('submit',e=>{e.preventDefault();doLoan();});
   if(f=qs('#payForm'))f.addEventListener('submit',e=>{e.preventDefault();doPay();});
   let fi;
-  if(fi=qs('#f_foto'))fi.addEventListener('change',e=>{if(e.target.files[0])setDraft(e.target.files[0]);});
+  if(fi=qs('#f_foto'))fi.addEventListener('change',e=>{if(e.target.files[0]){captureLoanForm();setDraft(e.target.files[0]);}});
   if(fi=qs('#p_foto'))fi.addEventListener('change',e=>{if(e.target.files[0])setDraft(e.target.files[0]);});
 }
 
