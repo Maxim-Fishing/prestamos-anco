@@ -220,6 +220,8 @@ textarea.input{resize:vertical;min-height:70px}
 .loginover .input{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3);color:#fff}
 .loginover .input::placeholder{color:rgba(255,255,255,.6)}
 .loginover .input:focus{border-color:#e9c96b;box-shadow:0 0 0 3px rgba(212,175,55,.28)}
+.loginover select.input{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'><path d='M2 4l4 4 4-4' stroke='white' stroke-width='1.6' fill='none' stroke-linecap='round'/></svg>");background-repeat:no-repeat;background-position:right 14px center;padding-right:38px}
+.loginover select.input option{color:#1a1a1a;background:#ffffff}
 .center{flex:1;overflow-y:auto;display:flex;flex-direction:column;justify-content:center;padding:26px 20px}
 .logo{width:88px;height:88px;border-radius:22px;background:#f5f5ef;display:grid;place-items:center;padding:12px;margin:0 auto 14px;box-shadow:var(--shadow)}
 .logo svg{width:100%;height:100%}
@@ -274,6 +276,7 @@ const firebaseConfig = {
 
 const ISO='<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M13 53 L30 12 L34 12 L51 53" fill="none" stroke="#0b5d4b" stroke-width="7" stroke-linejoin="round" stroke-linecap="round"/><path d="M21 41 L39 41" stroke="#0b5d4b" stroke-width="6" stroke-linecap="round"/><path d="M30 47 L47 17" fill="none" stroke="#d4af37" stroke-width="7" stroke-linecap="round"/><path d="M39 15 L50 13 L48 24 Z" fill="#d4af37"/></svg>';
 const BRAND='PRÉSTAMOS ANCO';
+const LOGINS=[{nombre:'Andrés',email:'andres.cordoba@gmail.com'},{nombre:'Andrea',email:'andrea@gmail.com'}];
 
 let auth, db, me=null, meNombre='';
 let unsubLoans=null, unsubPays=null, unsubConfig=null, unsubBaseLog=null;
@@ -452,16 +455,17 @@ function viewLogin(){
     '<div class="bgveil"></div>'+
     '<div class="center loginover"><div class="logo">'+ISO+'</div>'+
     '<h1>ANCO <span class="g">Préstamos</span></h1><div class="slogan">Tus metas, nuestro compromiso</div>'+
-    '<div class="tag">Ingresa con tu correo y contraseña</div>'+
+    '<div class="tag">Elige tu usuario y escribe tu contraseña</div>'+
     (S.error?'<div class="err">'+esc(S.error)+'</div>':'')+
     '<form id="loginForm">'+
-      '<div class="field"><label>Correo</label><input class="input" id="l_email" type="email" inputmode="email" autocomplete="username" placeholder="correo@ejemplo.com"></div>'+
+      '<div class="field"><label>Usuario</label><select class="input" id="l_user">'+
+        LOGINS.map(u=>'<option value="'+esc(u.email)+'">'+esc(u.nombre)+'</option>').join('')+'</select></div>'+
       '<div class="field"><label>Contraseña</label><input class="input" id="l_pw" type="password" autocomplete="current-password" placeholder="••••••"></div>'+
       '<button class="btn gold" type="submit">Ingresar</button></form></div></div>';
 }
 async function doLogin(){
-  S.error=''; const email=(qs('#l_email').value||'').trim(), pw=qs('#l_pw').value;
-  if(!email||!pw){S.error='Escribe tu correo y contraseña.';return render();}
+  S.error=''; const email=(qs('#l_user').value||'').trim(), pw=qs('#l_pw').value;
+  if(!email||!pw){S.error='Elige tu usuario y escribe la contraseña.';return render();}
   savingOn('Ingresando…');
   try{ await signInWithEmailAndPassword(auth,email,pw); }
   catch(e){ S.error=authMsg(e); savingOff(); return render(); }
