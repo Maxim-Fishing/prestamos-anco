@@ -324,12 +324,12 @@ function calc(loan){
   const pagado=pagos.reduce((s,p)=>s+num(p.monto),0);
   const total=num(loan.monto)*(1+num(loan.interesPct)/100);
   const saldo=Math.max(0,total-pagado);
-  const nC=num(loan.numCuotas);
-  const esCuotas = loan.tipo==='cuotas' && nC>0 && total>0;
+  const nC=num(loan.numCuotas), vC0=num(loan.valorCuota);
+  const esCuotas = loan.tipo==='cuotas' && (nC>0 || vC0>0) && total>0;
   let cuotas=[], proxima=null, vencidasN=0, vencidasMonto=0, cuotasPag=0, numCuotas=0, valorCuota=0;
   if(esCuotas){
-    numCuotas=nC;
-    valorCuota = num(loan.valorCuota)>0 ? num(loan.valorCuota) : Math.round(total/numCuotas);
+    if(nC>0){ numCuotas=nC; valorCuota = vC0>0 ? vC0 : Math.round(total/numCuotas); }
+    else { valorCuota=vC0; numCuotas=Math.max(1,Math.ceil(total/valorCuota)); }
     const per=loan.periodicidad||'semanal', start=cuotaStart(loan); let rest=pagado;
     for(let i=1;i<=numCuotas;i++){
       const mv = (i===numCuotas) ? Math.max(0,total-valorCuota*(numCuotas-1)) : valorCuota;
