@@ -100,6 +100,14 @@ h1,h2,h3{margin:0;font-family:var(--display);font-weight:700;letter-spacing:-.01
 .od-det{font-weight:700;font-size:12.5px;flex:none;white-space:nowrap}
 .odbanner .od-det{color:var(--bad)}
 .upbanner .od-det{color:var(--accent-ink)}
+.pp-list{display:flex;flex-direction:column}
+.pp-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.pp-row:last-child{border-bottom:0}
+.pp-main{flex:1;min-width:0;text-align:left;display:flex;flex-direction:column;gap:2px;background:none}
+.pp-nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pp-sub{font-size:12px;color:var(--muted)}
+.pp-sub.soon{color:var(--accent-ink);font-weight:600}
+.pp-amt{font-family:var(--display);font-weight:700;font-size:13.5px;white-space:nowrap;flex:none}
 
 /* lists */
 .list{display:flex;flex-direction:column;gap:9px}
@@ -526,7 +534,7 @@ function navInicio(){
   const base='<div class="basecard"><div class="brow"><div><div class="lbl">Saldo de la base</div><div class="amt tnum">'+money(t.saldoBase)+'</div></div>'+
     '<button class="ghost" data-act="adjustBase">✎ Ajustar</button></div>'+
     '<div class="sub">Base '+money(t.base)+' · '+t.activos+' préstamo'+(t.activos===1?'':'s')+' activo'+(t.activos===1?'':'s')+'</div></div>';
-  return base+overdueBanner()+upcomingBanner()+dashboardCard()+
+  return base+overdueBanner()+dashboardCard()+proximosBlock()+
     '<div class="chips">'+
     '<div class="chip"><div class="n tnum">'+money(t.prestado)+'</div><div class="t">Prestado</div></div>'+
     '<div class="chip cobrar"><div class="n tnum">'+money(t.porCobrar)+'</div><div class="t">Por cobrar</div></div>'+
@@ -557,6 +565,18 @@ function overdueBanner(){
   const tot=items.reduce((s,x)=>s+x.c.vencidasMonto,0);
   const rows=items.map(x=>bannerRow(x.l.id,x.c.vencidasN+' cuota'+(x.c.vencidasN===1?'':'s')+' vencida'+(x.c.vencidasN===1?'':'s')+' · '+money(x.c.vencidasMonto),'mora')).join('');
   return '<div class="odbanner"><div class="od-h">⚠ '+items.length+' préstamo'+(items.length===1?'':'s')+' con pagos vencidos · '+money(tot)+'</div>'+rows+'</div>';
+}
+function proximosBlock(){
+  const items=agendaItems().filter(x=>!x.venc).slice(0,6);
+  if(!items.length) return '';
+  const rows=items.map(x=>{const d=daysUntil(x.due);
+    const cuando=d===0?'Hoy':(d===1?'Mañana':fmtD(x.due)); const soon=d<=2;
+    return '<div class="pp-row"><button class="pp-main" data-open="'+esc(x.loanId)+'"><span class="pp-nm">'+esc(x.nombre)+'</span>'+
+      '<span class="pp-sub'+(soon?' soon':'')+'">'+cuando+' · Cuota N° '+x.cuotaN+'</span></button>'+
+      '<span class="pp-amt tnum">'+money(x.monto)+'</span>'+
+      '<button class="od-wa" data-waremind="'+esc(x.loanId)+'|proxima" title="Recordar por WhatsApp">WA</button></div>';}).join('');
+  return '<div class="card"><div class="saldo-lbl" style="margin-bottom:6px">Próximos por pagar</div><div class="pp-list">'+rows+'</div>'+
+    '<button class="linklike" data-nav="calendario">Ver calendario completo →</button></div>';
 }
 function upcomingBanner(){
   const items=S.loans.map(l=>({l,c:calc(l)})).filter(x=>x.c.estado==='activo' && x.c.esCuotas && x.c.proxima && daysUntil(x.c.proxima.due)>=0 && daysUntil(x.c.proxima.due)<=2);
