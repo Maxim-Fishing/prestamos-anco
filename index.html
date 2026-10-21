@@ -182,6 +182,7 @@ table.cuotas tr.q-venc td{background:var(--bad-soft)}
 .wacard{background:var(--brand-soft);border:1px solid var(--brand);border-radius:var(--r);padding:14px 16px;margin-bottom:14px}
 .wacard .wc-h{font-family:var(--display);font-weight:700;font-size:15px}
 .wacard .wc-s{font-size:13px;color:var(--muted);margin-top:4px}
+.linklike{display:block;width:100%;text-align:center;color:var(--muted);font-weight:600;font-size:13px;padding:10px;margin-top:6px;background:none}
 
 /* forms */
 .formwrap{flex:1;overflow-y:auto;padding:18px 16px 28px}
@@ -283,7 +284,7 @@ let unsubLoans=null, unsubPays=null, unsubConfig=null, unsubBaseLog=null;
 const app=document.getElementById('app');
 const S={ screen:'loading', nav:'inicio', config:null, loans:[], payments:[], baseLog:[], selId:null,
   loanType:'unico', periodic:'semanal', baseOp:'agregar', baseDraft:'',
-  payCtx:null, justSaved:false, justPayId:null, justPayCuota:null,
+  payCtx:null, justSaved:false, justPayId:null, justPayCuota:null, vcuoTouched:false,
   draftFile:null, draftURL:null, error:'', loanDraft:{} };
 
 /* ---------- utils ---------- */
@@ -315,11 +316,12 @@ function calc(loan){
   const pagado=pagos.reduce((s,p)=>s+num(p.monto),0);
   const total=num(loan.monto)*(1+num(loan.interesPct)/100);
   const saldo=Math.max(0,total-pagado);
-  const valorCuota=num(loan.valorCuota);
-  const esCuotas = loan.tipo==='cuotas' && valorCuota>0 && total>0;
-  let cuotas=[], proxima=null, vencidasN=0, vencidasMonto=0, cuotasPag=0, numCuotas=0;
+  const nC=num(loan.numCuotas);
+  const esCuotas = loan.tipo==='cuotas' && nC>0 && total>0;
+  let cuotas=[], proxima=null, vencidasN=0, vencidasMonto=0, cuotasPag=0, numCuotas=0, valorCuota=0;
   if(esCuotas){
-    numCuotas=Math.max(1,Math.ceil(total/valorCuota));
+    numCuotas=nC;
+    valorCuota = num(loan.valorCuota)>0 ? num(loan.valorCuota) : Math.round(total/numCuotas);
     const per=loan.periodicidad||'semanal', start=cuotaStart(loan); let rest=pagado;
     for(let i=1;i<=numCuotas;i++){
       const mv = (i===numCuotas) ? Math.max(0,total-valorCuota*(numCuotas-1)) : valorCuota;
@@ -621,15 +623,12 @@ function viewDetail(){
   const head='<div class="dethead"><button class="iconbtn" data-act="back">‹</button><div><div class="t">'+esc(cl.nombre||'Cliente')+'</div></div>'+
     '<div style="margin-left:auto"><span class="badge b-'+c.estado+'">'+c.estado+'</span></div></div>';
   let waCard='';
-  if(S.justSaved||S.justPayId){
+  if(S.justSaved){
     const tel=(cl.tel||'').trim();
-    let act,titulo;
-    if(S.justPayId){ act='data-wapaidc="'+(S.justPayCuota||'')+'"'; titulo='Pago registrado'; }
-    else { act='data-act="waLoan"'; titulo='Préstamo guardado'; }
-    const sub=tel?('Envía el comprobante a '+esc(cl.nombre||'el cliente')+' por WhatsApp.'):'Este cliente no tiene teléfono; WhatsApp te dejará elegir el contacto.';
-    waCard='<div class="wacard"><div class="wc-h">✅ '+titulo+'</div><div class="wc-s">'+sub+'</div>'+
-      '<div class="btnrow" style="margin:12px 0 0"><button class="btn wa" '+act+'>Enviar por WhatsApp</button>'+
-      '<button class="btn sec" data-act="waDismiss" style="flex:0 0 auto;min-width:92px">Omitir</button></div></div>';
+    const sub=tel?('Envía el resumen a '+esc(cl.nombre||'el cliente')+' por WhatsApp.'):'Este cliente no tiene teléfono; WhatsApp te dejará elegir el contacto.';
+    waCard='<div class="wacard"><div class="wc-h">✅ Préstamo guardado</div><div class="wc-s">'+sub+'</div>'+
+      '<button class="btn wa" data-act="waLoan" style="margin-top:12px">Enviar por WhatsApp</button>'+
+      '<button class="linklike" data-act="waDismiss">Omitir</button></div>';
   }
   let prog='';
   if(c.esCuotas){const pct=Math.min(100,Math.round((c.cuotasPag/c.numCuotas)*100));
@@ -683,7 +682,7 @@ function cuotasCard(l,c){
 
 /* ---------- formulario de préstamo ---------- */
 function captureLoanForm(){
-  const map={nombre:'#f_nombre',tel:'#f_tel',monto:'#f_monto',intr:'#f_int',per:'#f_per',vcuo:'#f_vcuo',fprim:'#f_fprim',fdes:'#f_fdes',notas:'#f_notas'};
+  const map={nombre:'#f_nombre',tel:'#f_tel',monto:'#f_monto',intr:'#f_int',per:'#f_per',ncuo:'#f_ncuo',vcuo:'#f_vcuo',fprim:'#f_fprim',fdes:'#f_fdes',notas:'#f_notas'};
   for(const k in map){const e=qs(map[k]); if(e) S.loanDraft[k]=e.value;}
   if(S.loanDraft.per!==undefined) S.periodic=S.loanDraft.per;
 }
@@ -703,9 +702,10 @@ function viewLoanForm(){
       '<button type="button" data-ltype="cuotas" aria-pressed="'+isC+'">Por cuotas</button></div></div>'+
     '<div class="field"><label>Interés (%) <span class="req">*</span></label><input class="input tnum" id="f_int" inputmode="decimal" value="'+esc(di)+'"></div>';
   if(isC){
-    form+='<div class="two"><div class="field"><label>Valor de cada cuota <span class="req">*</span></label><input class="input tnum" id="f_vcuo" inputmode="numeric" placeholder="0" value="'+esc(d.vcuo||'')+'"></div>'+
+    form+='<div class="two"><div class="field"><label>N° de cuotas <span class="req">*</span></label><input class="input tnum" id="f_ncuo" inputmode="numeric" placeholder="Ej: 8" value="'+esc(d.ncuo||'')+'"></div>'+
       '<div class="field"><label>Periodicidad</label><select class="select" id="f_per">'+perOpt('diario')+perOpt('semanal')+perOpt('quincenal')+perOpt('mensual')+'</select></div></div>'+
-      '<div class="field"><label>Fecha de la primera cuota</label><input class="input" id="f_fprim" type="date" value="'+esc(d.fprim||'')+'"><div class="hint">La app calcula cuántas cuotas salen con el valor, el interés y el monto. Si dejas la fecha vacía, cuenta desde el desembolso.</div></div>';
+      '<div class="field"><label>Valor por cuota (sugerido, editable)</label><input class="input tnum" id="f_vcuo" inputmode="numeric" placeholder="se calcula solo" value="'+esc(d.vcuo||'')+'"><div class="hint">Se calcula solo: (monto + interés) ÷ N° de cuotas. Puedes redondearlo a un valor entero; la última cuota ajusta la diferencia.</div></div>'+
+      '<div class="field"><label>Fecha de la primera cuota</label><input class="input" id="f_fprim" type="date" value="'+esc(d.fprim||'')+'"><div class="hint">Si la dejas vacía, cuenta desde el desembolso.</div></div>';
   }
   form+='<div class="field"><label>Fecha de desembolso</label><input class="input" id="f_fdes" type="date" value="'+esc(d.fdes||'')+'"></div>'+
     '<div class="sectitle">Evidencia <span class="req">*</span></div>'+
@@ -726,12 +726,12 @@ function uploadPhoto(file){
     img.onerror=()=>{URL.revokeObjectURL(u);reject(new Error('No se pudo leer la imagen'));}; img.src=u; });
 }
 async function doLoan(){
-  S.error='';
+  S.error=''; captureLoanForm();
   const nombre=(qs('#f_nombre').value||'').trim(); const monto=num(qs('#f_monto').value); const intr=num(qs('#f_int').value);
-  const isC=S.loanType==='cuotas'; const vcuo=isC?num((qs('#f_vcuo')||{}).value):0;
+  const isC=S.loanType==='cuotas'; const ncuo=isC?num((qs('#f_ncuo')||{}).value):0; const vcuo=isC?num((qs('#f_vcuo')||{}).value):0;
   if(!nombre){S.error='Escribe el nombre del cliente.';return render();}
   if(monto<=0){S.error='El monto prestado debe ser mayor a 0.';return render();}
-  if(isC && vcuo<=0){S.error='Escribe el valor de cada cuota.';return render();}
+  if(isC && ncuo<=0){S.error='Escribe el número de cuotas.';return render();}
   if(!S.draftFile){S.error='Debes cargar la foto de evidencia.';return render();}
   savingOn('Subiendo evidencia…');
   try{
@@ -739,6 +739,7 @@ async function doLoan(){
     const docu={cliente:{nombre,tel:qs('#f_tel').value.trim()},
       monto,interesPct:intr,tipo:S.loanType,
       periodicidad:isC?qs('#f_per').value:'',
+      numCuotas:isC?ncuo:0,
       valorCuota:isC?vcuo:0,
       fechaPrimeraCuota:isC?((qs('#f_fprim')||{}).value||''):'',
       fechaDesembolso:qs('#f_fdes').value||'',
@@ -762,16 +763,23 @@ function viewPay(){
     '<form id="payForm">'+
     '<div class="field"><label>Valor del pago <span class="req">*</span></label><input class="input tnum" id="p_monto" inputmode="numeric" placeholder="0" value="'+(ctx.monto!=null?Math.round(ctx.monto):'')+'"></div>'+
     '<div class="field"><label>Fecha del pago</label><input class="input" id="p_fecha" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
-    '<button class="btn" type="submit">Registrar pago</button></form></div>';
+    '<button class="btn wa" type="submit">Registrar e informar por WhatsApp</button>'+
+    '<div class="hint" style="text-align:center">Guarda el pago y abre WhatsApp con el comprobante para el cliente.</div></form></div>';
 }
 async function doPay(){
   S.error=''; const ctx=S.payCtx||{}; const l=loanById(ctx.loanId); if(!l){S.screen='home';return render();}
   const monto=num(qs('#p_monto').value); const fecha=qs('#p_fecha').value||'';
   if(monto<=0){S.error='El valor debe ser mayor a 0.';return render();}
+  // informar de una vez por WhatsApp (mensaje con el estado DESPUÉS del pago, en el mismo gesto)
+  const tel=(l.cliente&&l.cliente.tel)||'';
+  S.payments.push({loanId:l.id,monto,cuotaN:ctx.cuotaN||null,createdAt:Date.now()+1,__tmp:true});
+  let msg=''; try{ msg=msgPagoCuota(l,calc(l),ctx.cuotaN||'?',monto); }catch(e){}
+  S.payments=S.payments.filter(p=>!p.__tmp);
+  if(msg) openWA(tel,msg);
   savingOn('Registrando pago…');
   try{
-    const pref=await addDoc(collection(db,'payments'),{loanId:l.id,monto,tipo:'cuota',cuotaN:ctx.cuotaN||null,fecha,registradoPor:meNombre,createdAt:Date.now()});
-    S.payCtx=null; S.justSaved=false; S.justPayId=pref.id; S.justPayCuota=ctx.cuotaN||null; S.selId=l.id; S.screen='detail';
+    await addDoc(collection(db,'payments'),{loanId:l.id,monto,tipo:'cuota',cuotaN:ctx.cuotaN||null,fecha,registradoPor:meNombre,createdAt:Date.now()});
+    S.payCtx=null; S.justSaved=false; S.justPayId=null; S.justPayCuota=null; S.selId=l.id; S.screen='detail';
   }catch(e){ S.error='No se pudo guardar: '+(e&&e.message||e); }
   savingOff(); render();
 }
@@ -847,6 +855,14 @@ function bind(){
   if(f=qs('#payForm'))f.addEventListener('submit',e=>{e.preventDefault();doPay();});
   if(f=qs('#baseForm'))f.addEventListener('submit',e=>{e.preventDefault();doAdjustBase();});
   let fi; if(fi=qs('#f_foto'))fi.addEventListener('change',e=>{if(e.target.files[0]){captureLoanForm();setDraft(e.target.files[0]);}});
+  // sugerir valor de cuota automático
+  ['#f_monto','#f_int','#f_ncuo'].forEach(id=>{const e=qs(id); if(e)e.addEventListener('input',suggestCuota);});
+  const vc=qs('#f_vcuo'); if(vc){vc.addEventListener('input',()=>{S.vcuoTouched=true;S.loanDraft.vcuo=vc.value;}); suggestCuota();}
+}
+function suggestCuota(){
+  const vc=qs('#f_vcuo'); if(!vc||S.vcuoTouched)return;
+  const monto=num((qs('#f_monto')||{}).value), intr=num((qs('#f_int')||{}).value), n=num((qs('#f_ncuo')||{}).value);
+  if(monto>0 && n>0){ const sug=Math.round(monto*(1+intr/100)/n); vc.value=sug; S.loanDraft.vcuo=String(sug); }
 }
 app.addEventListener('click',e=>{
   let el;
@@ -867,7 +883,7 @@ app.addEventListener('click',e=>{
   const act=e.target.closest('[data-act]'); if(!act)return;
   switch(act.getAttribute('data-act')){
     case 'logout': S.justSaved=false;S.justPayId=null; signOut(auth); break;
-    case 'newLoan': clearDraft();S.loanDraft={};S.loanType='unico';S.periodic='semanal';S.error='';S.justSaved=false;S.justPayId=null;S.screen='newLoan';render();break;
+    case 'newLoan': clearDraft();S.loanDraft={};S.loanType='unico';S.periodic='semanal';S.vcuoTouched=false;S.error='';S.justSaved=false;S.justPayId=null;S.screen='newLoan';render();break;
     case 'newPayment': { const l=loanById(S.selId); const c=l?calc(l):null;
       if(c&&c.esCuotas&&c.proxima) S.payCtx={loanId:S.selId,cuotaN:c.proxima.i,monto:c.proxima.saldoCuota};
       else S.payCtx={loanId:S.selId,cuotaN:null,monto:c?c.saldo:0};
