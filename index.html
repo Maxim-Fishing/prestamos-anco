@@ -115,9 +115,17 @@ h1,h2,h3{margin:0;font-family:var(--display);font-weight:600;letter-spacing:-.01
 .kv .full{grid-column:1 / -1}
 .odbanner{background:var(--bad-soft);border:1px solid var(--bad);border-radius:var(--r);padding:12px 14px;margin-bottom:16px}
 .od-h{color:var(--bad);font-weight:700;font-size:13.5px;margin-bottom:8px}
-.od-row{width:100%;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line);margin-top:6px;text-align:left}
+.od-row{display:flex;align-items:stretch;gap:8px;margin-top:6px}
+.od-main{flex:1;min-width:0;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:var(--surface);border:1px solid var(--line);text-align:left}
+.od-wa{flex:0 0 auto;background:#25D366;color:#06210f;font-weight:700;font-size:12px;border-radius:10px;padding:0 12px}
 .od-nm{font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.od-det{color:var(--bad);font-weight:700;font-size:12.5px;flex:none}
+.od-det{color:var(--bad);font-weight:700;font-size:12.5px;flex:none;white-space:nowrap}
+.upbanner{background:var(--warn-soft);border:1px solid var(--warn);border-radius:var(--r);padding:12px 14px;margin-bottom:16px}
+.up-h{color:var(--warn);font-weight:700;font-size:13.5px;margin-bottom:4px}
+.upbanner .od-det{color:var(--warn)}
+.qa{text-align:right}
+.qpay{background:var(--brand-soft);color:var(--brand-ink);font-weight:700;font-size:11.5px;border-radius:8px;padding:5px 10px;white-space:nowrap}
+.qok{color:var(--good);font-weight:700}
 .plan-sum{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
 .plan-sum>div{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:9px 11px;display:flex;flex-direction:column;gap:2px}
 .ps-k{font-size:11px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
@@ -213,7 +221,7 @@ let auth, db, me=null, meNombre='';
 let unsubLoans=null, unsubPays=null, unsubConfig=null, unsubBaseLog=null;
 const app=document.getElementById('app');
 const S={ screen:'loading', config:null, loans:[], payments:[], baseLog:[], selId:null, tab:'pagos',
-  loanType:'unico', periodic:'mensual', payType:'cuota', baseOp:'agregar', baseDraft:'',
+  loanType:'unico', periodic:'mensual', payType:'cuota', baseOp:'agregar', baseDraft:'', payPrefill:null,
   draftFile:null, draftURL:null, error:'', loanDraft:{}, justSaved:false, justPayId:null };
 
 /* ---------- utils ---------- */
@@ -229,7 +237,11 @@ const qs=s=>app.querySelector(s);
 const dataScreen=()=>S.screen==='home'||S.screen==='detail';
 
 function addPeriod(d,per,n){const x=new Date(d.getTime());
-  if(per==='mensual')x.setMonth(x.getMonth()+n); else if(per==='quincenal')x.setDate(x.getDate()+15*n); else x.setDate(x.getDate()+7*n); return x;}
+  if(per==='mensual')x.setMonth(x.getMonth()+n);
+  else if(per==='quincenal')x.setDate(x.getDate()+15*n);
+  else if(per==='diario')x.setDate(x.getDate()+1*n);
+  else x.setDate(x.getDate()+7*n); /* semanal */ return x;}
+function daysUntil(due){const t=today0();const d=new Date(due.getFullYear(),due.getMonth(),due.getDate());return Math.round((d-t)/86400000);}
 function cuotaStart(loan){ const per=loan.periodicidad||'mensual';
   if(loan.fechaPrimeraCuota) return new Date(loan.fechaPrimeraCuota+'T00:00:00');
   if(loan.fechaDesembolso) return addPeriod(new Date(loan.fechaDesembolso+'T00:00:00'),per,1);
@@ -296,6 +308,19 @@ function msgLoan(l,c){
     if(c.proxima) m+='• Primera cuota: '+fmtD(c.proxima.due)+'\n'; }
   if(l.fechaVencimiento) m+='• Fecha límite: '+fmtDate(l.fechaVencimiento)+'\n';
   m+='\nGracias por tu confianza.';
+  return m;
+}
+function msgRecordatorio(l,c,kind){
+  const nm=(l.cliente&&l.cliente.nombre)||'';
+  let m='*Préstamos ANCO*\n';
+  if(kind==='mora'){
+    m+='Hola '+nm+', te recordamos que tienes '+c.vencidasN+' cuota'+(c.vencidasN===1?'':'s')+' vencida'+(c.vencidasN===1?'':'s')+' por '+money(c.vencidasMonto)+'. Por favor ponte al día.\n';
+    m+='Saldo pendiente total: '+money(c.saldo)+'.\n\nGracias.';
+  } else if(c.proxima){
+    const d=daysUntil(c.proxima.due);
+    const cuando=d===0?'vence hoy':(d===1?'vence mañana':'vence el '+fmtD(c.proxima.due));
+    m+='Hola '+nm+', te recordamos que tu próxima cuota '+cuando+' por '+money(c.proxima.saldoCuota)+'.\n\nGracias.';
+  } else { m+='Hola '+nm+', este es tu recordatorio de pago. Saldo pendiente: '+money(c.saldo)+'.\n\nGracias.'; }
   return m;
 }
 function msgPago(l,c,p){
@@ -442,7 +467,7 @@ function viewHome(){
   const seg='<div class="seg"><button data-tab="pagos" aria-selected="'+(S.tab==='pagos')+'">Pagos recientes</button>'+
     '<button data-tab="prestamos" aria-selected="'+(S.tab==='prestamos')+'">Préstamos</button></div>';
   const body=S.tab==='pagos'?listPagos():listPrestamos();
-  return head+'<div class="scroll">'+overdueBanner()+dashboardCard()+chips+seg+body+'</div><button class="fab" data-act="newLoan"><span class="plus">+</span> Préstamo</button>';
+  return head+'<div class="scroll">'+overdueBanner()+upcomingBanner()+dashboardCard()+chips+seg+body+'</div><button class="fab" data-act="newLoan"><span class="plus">+</span> Préstamo</button>';
 }
 function moneyShort(n){n=Math.round(+n||0);if(n>=1e6)return '$'+(n/1e6).toLocaleString('es-CO',{maximumFractionDigits:1})+'M';if(n>=1e3)return '$'+Math.round(n/1e3)+'k';return '$'+n;}
 function dashboardCard(){
@@ -506,14 +531,27 @@ async function doAdjustBase(){
   }catch(e){ S.error='No se pudo guardar: '+(e&&e.message||e); }
   savingOff(); render();
 }
+function bannerRow(l,det,kind){
+  const nm=(l.cliente&&l.cliente.nombre)||'Cliente';
+  const tel=(l.cliente&&l.cliente.tel)||'';
+  return '<div class="od-row"><button class="od-main" data-open="'+esc(l.id)+'"><span class="od-nm">'+esc(nm)+'</span><span class="od-det tnum">'+det+'</span></button>'+
+    '<button class="od-wa" data-waremind="'+esc(l.id)+'|'+kind+'" title="Recordar por WhatsApp">WA</button></div>';
+}
 function overdueBanner(){
   const items=S.loans.map(l=>({l,c:calc(l)})).filter(x=>x.c.estado==='mora');
   if(!items.length) return '';
   const tot=items.reduce((s,x)=>s+(x.c.esCuotas?x.c.vencidasMonto:x.c.saldo),0);
-  const rows=items.map(x=>{const nm=(x.l.cliente&&x.l.cliente.nombre)||'Cliente';
-    const det=x.c.esCuotas?(x.c.vencidasN+' cuota'+(x.c.vencidasN===1?'':'s')+' vencida'+(x.c.vencidasN===1?'':'s')+' · '+money(x.c.vencidasMonto)):('Venció · '+money(x.c.saldo));
-    return '<button class="od-row" data-open="'+esc(x.l.id)+'"><span class="od-nm">'+esc(nm)+'</span><span class="od-det tnum">'+det+'</span></button>';}).join('');
+  const rows=items.map(x=>{const det=x.c.esCuotas?(x.c.vencidasN+' cuota'+(x.c.vencidasN===1?'':'s')+' vencida'+(x.c.vencidasN===1?'':'s')+' · '+money(x.c.vencidasMonto)):('Venció · '+money(x.c.saldo));
+    return bannerRow(x.l,det,'mora');}).join('');
   return '<div class="odbanner"><div class="od-h">⚠ '+items.length+' préstamo'+(items.length===1?'':'s')+' con pagos vencidos · '+money(tot)+'</div>'+rows+'</div>';
+}
+function upcomingBanner(){
+  const items=S.loans.map(l=>({l,c:calc(l)})).filter(x=>x.c.estado==='activo' && x.c.esCuotas && x.c.proxima && daysUntil(x.c.proxima.due)>=0 && daysUntil(x.c.proxima.due)<=3);
+  if(!items.length) return '';
+  const rows=items.map(x=>{const d=daysUntil(x.c.proxima.due);
+    const cuando=d===0?'vence hoy':(d===1?'vence mañana':'vence en '+d+' días');
+    return bannerRow(x.l,cuando+' · '+money(x.c.proxima.saldoCuota),'proxima');}).join('');
+  return '<div class="upbanner"><div class="up-h">⏰ '+items.length+' cuota'+(items.length===1?'':'s')+' por cobrar pronto</div>'+rows+'</div>';
 }
 function listPagos(){
   const pagos=S.payments.slice().sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
@@ -595,13 +633,18 @@ function cuotasCard(l,c){
     '<div><span class="ps-k">Próxima cuota</span><span class="ps-v">'+(c.proxima?(fmtD(c.proxima.due)+' · '+money(c.proxima.saldoCuota)):'—')+'</span></div>'+
     '<div><span class="ps-k">Vencidas</span><span class="ps-v '+(c.vencidasN?'bad':'')+'">'+(c.vencidasN?(c.vencidasN+' · '+money(c.vencidasMonto)):'ninguna')+'</span></div>'+
     '</div>';
+  const kind = c.vencidasN?'mora':((c.proxima && daysUntil(c.proxima.due)>=0 && daysUntil(c.proxima.due)<=3)?'proxima':'');
+  const remind = kind ? '<button class="btn wa" data-waremind="'+esc(l.id)+'|'+kind+'" style="margin-bottom:12px">Recordar por WhatsApp</button>' : '';
   const rows=c.cuotas.map(q=>{
     const cls=q.estado==='pagada'?'b-pagado':(q.estado==='vencida'?'b-mora':(q.estado==='parcial'?'b-int':'b-cap'));
     const lab=q.estado==='pagada'?'Pagada':(q.estado==='vencida'?'Vencida':(q.estado==='parcial'?'Parcial':'Pendiente'));
-    return '<tr class="'+(q.estado==='vencida'?'q-venc':'')+'"><td>'+q.i+'</td><td>'+fmtD(q.due)+'</td><td class="tnum">'+money(q.monto)+'</td><td><span class="badge '+cls+'">'+lab+'</span></td></tr>';
+    const rem=Math.max(0,q.monto-(q.cubierto||0));
+    const act=q.estado==='pagada'?'<span class="qok">✓</span>':'<button class="qpay" data-paycuota="'+esc(l.id)+'|'+rem+'">Pagar</button>';
+    return '<tr class="'+(q.estado==='vencida'?'q-venc':'')+'"><td>'+q.i+'</td><td>'+fmtD(q.due)+'</td><td class="tnum">'+money(q.monto)+'</td><td><span class="badge '+cls+'">'+lab+'</span></td><td class="qa">'+act+'</td></tr>';
   }).join('');
-  return '<div class="card"><div class="saldo-lbl" style="margin-bottom:10px">Plan de cuotas</div>'+resumen+
-    '<div class="plan-tbl"><table class="cuotas"><thead><tr><th>#</th><th>Vence</th><th>Valor</th><th>Estado</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+  return '<div class="card"><div class="saldo-lbl" style="margin-bottom:10px">Plan de cuotas</div>'+resumen+remind+
+    '<div class="plan-tbl"><table class="cuotas"><thead><tr><th>#</th><th>Vence</th><th>Valor</th><th>Estado</th><th></th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    '<div class="hint" style="margin-top:8px">Toca «Pagar» en una cuota para registrar su pago.</div></div>';
 }
 
 function captureLoanForm(){
@@ -626,7 +669,7 @@ function viewLoanForm(){
       '<button type="button" data-ltype="unico" aria-pressed="'+(!isC)+'">Cobro único</button>'+
       '<button type="button" data-ltype="cuotas" aria-pressed="'+isC+'">Por cuotas</button></div></div>'+
     '<div class="two"><div class="field"><label>Interés (%) <span class="req">*</span></label><input class="input tnum" id="f_int" inputmode="decimal" value="'+esc(di)+'"></div>'+
-    '<div class="field"><label>Periodicidad</label><select class="select" id="f_per">'+perOpt('mensual')+perOpt('quincenal')+perOpt('semanal')+perOpt('único')+'</select></div></div>'+
+    '<div class="field"><label>Periodicidad</label><select class="select" id="f_per">'+perOpt('diario')+perOpt('semanal')+perOpt('quincenal')+perOpt('mensual')+perOpt('único')+'</select></div></div>'+
     (isC?'<div class="two"><div class="field"><label>N° de cuotas <span class="req">*</span></label><input class="input tnum" id="f_ncuo" inputmode="numeric" placeholder="Ej: 12" value="'+esc(d.ncuo||'')+'"></div>'+
     '<div class="field"><label>Valor por cuota</label><input class="input tnum" id="f_vcuo" inputmode="numeric" placeholder="auto" value="'+esc(d.vcuo||'')+'"></div></div>'+
     '<div class="field"><label>Fecha de la primera cuota</label><input class="input" id="f_fprim" type="date" value="'+esc(d.fprim||'')+'"><div class="hint">Si lo dejas vacío, se calcula desde el desembolso. El valor por cuota se calcula solo si lo dejas en blanco.</div></div>':'')+
@@ -634,7 +677,7 @@ function viewLoanForm(){
     '<div class="field"><label>Fecha de vencimiento</label><input class="input" id="f_fven" type="date" value="'+esc(d.fven||'')+'"></div></div>'+
     '<div class="sectitle">Evidencia <span class="req">*</span></div>'+
     '<label class="photo'+(S.draftURL?' has':'')+'" id="photoBox">'+(S.draftURL?'<img src="'+S.draftURL+'" alt="Evidencia">':'<div class="ic">📷</div><div class="t">Tomar o subir foto</div><div class="s">Soporte del desembolso (obligatorio)</div>')+
-    '<input type="file" id="f_foto" accept="image/*" capture="environment" hidden></label>'+
+    '<input type="file" id="f_foto" accept="image/*" hidden></label>'+
     '<div class="hint">La foto es obligatoria. Al cargarla defines el % de interés arriba.</div>'+
     '<div class="field" style="margin-top:14px"><label>Notas</label><textarea class="input" id="f_notas" placeholder="Opcional">'+esc(d.notas||'')+'</textarea></div>'+
     '<button class="btn" type="submit" style="margin-top:4px">Guardar préstamo</button></form></div>';
@@ -691,7 +734,7 @@ function viewPayForm(){
   return head+'<div class="formwrap">'+(S.error?'<div class="err">'+esc(S.error)+'</div>':'')+
     '<div class="card" style="margin-bottom:16px"><div class="saldo-lbl">'+esc((l.cliente&&l.cliente.nombre)||'Cliente')+' · saldo</div>'+
     '<div class="saldo-amt tnum" style="font-size:26px">'+money(c.saldo)+'</div></div>'+
-    '<form id="payForm"><div class="field"><label>Monto del pago <span class="req">*</span></label><input class="input tnum" id="p_monto" inputmode="numeric" placeholder="0" value="'+(l.tipo==='cuotas'&&num(l.valorCuota)?num(l.valorCuota):'')+'"></div>'+
+    '<form id="payForm"><div class="field"><label>Monto del pago <span class="req">*</span></label><input class="input tnum" id="p_monto" inputmode="numeric" placeholder="0" value="'+(S.payPrefill!=null?S.payPrefill:(c.esCuotas?Math.round(c.valorCuota):''))+'"></div>'+
     '<div class="field"><label>Tipo de pago</label><div class="toggle">'+
       '<button type="button" data-ptype="cuota" aria-pressed="'+(S.payType==='cuota')+'">Cuota</button>'+
       '<button type="button" data-ptype="interes" aria-pressed="'+(S.payType==='interes')+'">Interés</button>'+
@@ -699,7 +742,7 @@ function viewPayForm(){
     '<div class="field"><label>Fecha</label><input class="input" id="p_fecha" type="date" value="'+new Date().toISOString().slice(0,10)+'"></div>'+
     '<div class="sectitle">Evidencia del pago</div>'+
     '<label class="photo'+(S.draftURL?' has':'')+'" id="photoBox">'+(S.draftURL?'<img src="'+S.draftURL+'" alt="Evidencia">':'<div class="ic">📷</div><div class="t">Foto del pago (opcional)</div>')+
-    '<input type="file" id="p_foto" accept="image/*" capture="environment" hidden></label>'+
+    '<input type="file" id="p_foto" accept="image/*" hidden></label>'+
     '<div class="field" style="margin-top:14px"><label>Nota</label><input class="input" id="p_nota" placeholder="Opcional"></div>'+
     '<button class="btn" type="submit">Guardar pago</button></form></div>';
 }
@@ -714,7 +757,7 @@ async function doPay(){
     if(S.draftFile) url=await uploadPhoto(S.draftFile,'pagos');
     const pref=await addDoc(collection(db,'payments'),{loanId:l.id,monto,tipo:S.payType,fecha:qs('#p_fecha').value||'',
       evidenciaUrl:url,nota:qs('#p_nota').value.trim(),registradoPor:meNombre,createdAt:Date.now()});
-    clearDraft(); S.justSaved=false; S.justPayId=pref.id; S.screen='detail';
+    clearDraft(); S.payPrefill=null; S.justSaved=false; S.justPayId=pref.id; S.screen='detail';
   }catch(e){ S.error='No se pudo guardar: '+(e&&e.message||e); }
   savingOff(); render();
 }
@@ -765,16 +808,20 @@ app.addEventListener('click',e=>{
   if(el=e.target.closest('[data-wapay]')){const p=S.payments.find(x=>x.id===el.getAttribute('data-wapay'));
     if(p){const l=loanById(p.loanId); if(l) openWA((l.cliente&&l.cliente.tel)||'', msgPago(l,calc(l),p));}
     S.justPayId=null; return;}
+  if(el=e.target.closest('[data-waremind]')){const pr=el.getAttribute('data-waremind').split('|');const l=loanById(pr[0]);
+    if(l) openWA((l.cliente&&l.cliente.tel)||'', msgRecordatorio(l,calc(l),pr[1])); return;}
+  if(el=e.target.closest('[data-paycuota]')){const pr=el.getAttribute('data-paycuota').split('|');
+    S.selId=pr[0]; S.payType='cuota'; S.payPrefill=num(pr[1]); S.error='';clearDraft();S.justSaved=false;S.justPayId=null;S.screen='newPayment';render();return;}
   if(el=e.target.closest('[data-open]')){S.selId=el.getAttribute('data-open');S.justSaved=false;S.justPayId=null;S.screen='detail';render();return;}
   if(el=e.target.closest('[data-viewimg]')){lightbox(el.getAttribute('data-viewimg'));return;}
   const act=e.target.closest('[data-act]'); if(!act)return;
   switch(act.getAttribute('data-act')){
     case 'logout': S.justSaved=false;S.justPayId=null; signOut(auth); break;
     case 'newLoan': clearDraft();S.loanDraft={};S.loanType='unico';S.periodic='mensual';S.error='';S.justSaved=false;S.justPayId=null;S.screen='newLoan';render();break;
-    case 'newPayment': clearDraft();S.payType='cuota';S.error='';S.justSaved=false;S.justPayId=null;S.screen='newPayment';render();break;
+    case 'newPayment': clearDraft();S.payType='cuota';S.payPrefill=null;S.error='';S.justSaved=false;S.justPayId=null;S.screen='newPayment';render();break;
     case 'back': clearDraft();S.error='';S.justSaved=false;S.justPayId=null;S.screen='home';render();break;
     case 'adjustBase': S.error='';S.baseOp='agregar';S.baseDraft='';S.screen='adjustBase';render();break;
-    case 'backDetail': clearDraft();S.error='';S.screen='detail';render();break;
+    case 'backDetail': clearDraft();S.payPrefill=null;S.error='';S.screen='detail';render();break;
     case 'delLoan': delLoan(); break;
     case 'waLoan': { const l=loanById(S.selId); if(l) openWA((l.cliente&&l.cliente.tel)||'', msgLoan(l,calc(l))); S.justSaved=false; break; }
     case 'waDismiss': S.justSaved=false;S.justPayId=null; render(); break;
